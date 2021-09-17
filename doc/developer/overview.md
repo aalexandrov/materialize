@@ -42,12 +42,12 @@ One central role of the coordinator is then to determine which times to use for 
 ### Frontier tracking
 
 The coordinator tracks information about the timestamp progress of data maintained in the dataflow layer.
-This is primarily for each collection of data an *interval of time* `[lower, upper)` describing those times for which we 1. have valid data (beyond `lower`), and 2. have complete data (not beyond `upper`).
+This is primarily for each collection of data an *interval of time* `[lower, upper)` describing those times for which we (1) have valid data (beyond `lower`), and (2) have complete data (not beyond `upper`).
 This information drives timestamp determination for queries that use these data: we must use one common timestamp, it *must* be large enough to be valid for all inputs (for correctness), and ideally it should be small enough that the data are complete (for promptness).
 
 ## Query optimization
 
-Materialize translate SQL queries (through a process called "lowering") into an intermediate representation (specifically "MIR") that we are then able to optimize.
+Materialize translates SQL queries (through a process called "lowering") into an intermediate representation (specifically "MIR") that we are then able to optimize.
 The optimizations are intended foremost to not change the "semantics" of the query (more on that in a moment).
 The optimizations are otherwise intended to improve the performance, resource use, and general tractability of dataflow execution.
 
@@ -89,10 +89,9 @@ Several of the operators will hold back updates until they have received all of 
 ### Determinism
 
 Operator logic should be deterministic.
-For example, the `Filter` operator will use a predicate to retain or discard updates; if the predicate produces different results on the insertion than it does on the deletion, the operator no longer correctly implements the `Filter` operator.
-The `Map`operator
-Imagine an expression that consults the current time, or a random number generator; repeated evaluation of the expression may produce different results that do not result in
-All expressions provided to the dataflow layer should correspond to deterministic expressions.
+This implies that all expressions provided to the dataflow layer should correspond to deterministic expressions.
+For example, the `Filter` operator uses a predicate to retain or discard updates; if the predicate produces different results on the insertion than it does on the deletion, the operator no longer correctly implements the `Filter` operator.
+Alternatively, imagine an expression that consults the current time, or a random number generator, being used within the function passed to a `Map` operator; repeated evaluation of the expression on the same input `Row` will produce different results.
 
 ### Asynchronous / cooperative scheduling
 
@@ -108,7 +107,7 @@ They can be viewed as indexes of data that store a history of their indexed data
 Arrangements are how we share data across dataflows; many dataflows conclude by building an arrangement out of a collection of interest, and many dataflows start by importing the arrangements of collections of interest.
 
 To reduce memory use, arrangements allow users to enable "logical compaction" which removes the ability to access the data at distant historical moments (those not beyond the "logical compaction frontier").
-The more recent this logical compaction frontier the more compaction is allowed.
+The more recent this logical compaction frontier the more compaction is allowed and the less memory is requi.
 Arrangements are only correct for times from the logical compaction frontier onward, which explains why it is important for the coordinator to track this information for timestamp determination.
 
 ### ASOF Times
