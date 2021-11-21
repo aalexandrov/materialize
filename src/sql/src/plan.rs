@@ -57,7 +57,9 @@ pub(crate) mod transform_ast;
 pub(crate) mod transform_expr;
 pub(crate) mod typeconv;
 
-pub use self::expr::{HirRelationExpr, HirScalarExpr};
+pub use self::expr::{
+    AggregateExpr, AggregateFunc, ColumnRef, HirRelationExpr, HirScalarExpr, JoinKind,
+};
 pub use error::PlanError;
 pub use explain::Explanation;
 pub use optimize::OptimizerConfig;
