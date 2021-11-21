@@ -1,0 +1,23 @@
+check
+SELECT;
+----
+HIR=OK
+MIR=OK
+
+check
+SELECT 1;
+----
+HIR=OK
+MIR=OK
+
+check
+SELECT x FROM (VALUES (1, 2, 3), (4, 5, 9)) as R(x, y, z);
+----
+HIR=OK
+MIR=OK
+
+# check
+# SELECT x FROM R;
+# ----
+# HIR=OK
+# MIR=OK

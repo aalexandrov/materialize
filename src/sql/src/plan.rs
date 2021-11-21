@@ -65,7 +65,7 @@ pub use explain::Explanation;
 pub use optimize::OptimizerConfig;
 // This is used by sqllogictest to turn SQL values into `Datum`s.
 pub use query::{
-    plan_default_expr, resolve_names, resolve_names_data_type, resolve_names_stmt,
+    plan_default_expr, plan_root_query, resolve_names, resolve_names_data_type, resolve_names_stmt,
     scalar_type_from_sql, Aug, QueryContext, QueryLifetime,
 };
 pub use statement::{describe, plan, plan_copy_from, StatementContext, StatementDesc};

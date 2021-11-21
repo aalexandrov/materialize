@@ -325,6 +325,7 @@ where
     Ok(result)
 }
 
+#[derive(Debug)]
 pub struct PlannedQuery<E> {
     pub expr: E,
     pub desc: RelationDesc,

@@ -11,3 +11,12 @@ ir-tools = { path = "../ir-tools" }
 repr = { path = "../repr" }
 sql = { path = "../sql" }
 mz-aws-util = { path = "../aws-util", features = ["kinesis", "s3", "sqs", "sts"] }
+
+[dev-dependencies]
+build-info = { path = "../build-info" }
+chrono = { version = "0.4.0", default-features = false, features = ["clock", "std"] }
+datadriven = "0.6.0"
+lazy_static = "1.4.0"
+ore = { path = "../ore" }
+sql-parser = { path = "../sql-parser" }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }

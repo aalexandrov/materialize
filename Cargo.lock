@@ -2461,11 +2461,18 @@ checksum = "68f2d64f2edebec4ce84ad108148e67e1064789bee435edc5b60ad398714a3a9"
 name = "ir"
 version = "0.1.0"
 dependencies = [
+ "build-info",
+ "chrono",
+ "datadriven",
  "expr",
  "ir-tools",
+ "lazy_static",
  "mz-aws-util",
+ "ore",
  "repr",
  "sql",
+ "sql-parser",
+ "uuid",
 ]
 
 [[package]]
