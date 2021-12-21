@@ -9,9 +9,7 @@
 
 use crate::query_model::{
     BoxId, BoxScalarExpr, BoxType, DistinctOperation, Model, QuantifierSet, QuantifierType,
-    QueryBox,
 };
-use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Rule type
@@ -93,7 +91,7 @@ fn deep_apply_rules(
             apply_rule(&mut **rule, model, box_id);
         }
 
-        let quantifiers = model.get_box(box_id).borrow().quantifiers.clone();
+        let quantifiers = model.get_box(box_id).quantifiers.clone();
         for q_id in quantifiers {
             let input_box = model.get_quantifier(q_id).borrow().input_box;
             deep_apply_rules(rules, model, input_box, visited_boxes);
@@ -133,7 +131,7 @@ impl Rule for SelectMerge {
 
     fn condition(&mut self, model: &Model, box_id: BoxId) -> bool {
         self.to_merge.clear();
-        let outer_box = model.get_box(box_id).borrow();
+        let outer_box = model.get_box(box_id);
         if let BoxType::Select(_outer_select) = &outer_box.box_type {
             for q_id in outer_box.quantifiers.iter() {
                 let q = model.get_quantifier(*q_id).borrow();
@@ -141,7 +139,7 @@ impl Rule for SelectMerge {
                 // Only Select boxes under Foreach quantifiers can be merged
                 // into the parent Select box.
                 if let QuantifierType::Foreach = q.quantifier_type {
-                    let input_box = model.get_box(q.input_box).borrow();
+                    let input_box = model.get_box(q.input_box);
 
                     // TODO(asenac) clone shared boxes
                     if input_box.ranging_quantifiers.len() == 1 {
@@ -164,23 +162,21 @@ impl Rule for SelectMerge {
         // Dereference all the expressions in the sub-graph referencing the quantifiers
         // that are about to be squashed into the current box.
         let _ = model.visit_pre_boxes_in_subgraph(
-            &mut |b: &RefCell<QueryBox>| -> Result<(), ()> {
-                b.borrow_mut().visit_expressions_mut(
-                    &mut |expr: &mut BoxScalarExpr| -> Result<(), ()> {
-                        expr.visit_mut(&mut |expr| {
-                            if let BoxScalarExpr::ColumnReference(c) = expr {
-                                if self.to_merge.contains(&c.quantifier_id) {
-                                    let inner_box =
-                                        model.get_quantifier(c.quantifier_id).borrow().input_box;
-                                    let inner_box = model.get_box(inner_box).borrow();
+            &mut |mut b| -> Result<(), ()> {
+                b.visit_expressions_mut(&mut |expr: &mut BoxScalarExpr| -> Result<(), ()> {
+                    expr.visit_mut(&mut |expr| {
+                        if let BoxScalarExpr::ColumnReference(c) = expr {
+                            if self.to_merge.contains(&c.quantifier_id) {
+                                let inner_box =
+                                    model.get_quantifier(c.quantifier_id).borrow().input_box;
+                                let inner_box = model.get_box(inner_box);
 
-                                    *expr = inner_box.columns[c.position].expr.clone();
-                                }
+                                *expr = inner_box.columns[c.position].expr.clone();
                             }
-                        });
-                        Ok(())
-                    },
-                )?;
+                        }
+                    });
+                    Ok(())
+                })?;
                 Ok(())
             },
             box_id,
@@ -188,12 +184,12 @@ impl Rule for SelectMerge {
 
         // Add all the quantifiers in the input boxes of the quantifiers to be
         // merged into the current box
-        let mut outer_box = model.get_box(box_id).borrow_mut();
+        let mut outer_box = model.get_mut_box(box_id);
         for q_id in self.to_merge.iter() {
             outer_box.quantifiers.remove(q_id);
 
             let input_box_id = model.get_quantifier(*q_id).borrow().input_box;
-            let input_box = model.get_box(input_box_id).borrow();
+            let input_box = model.get_box(input_box_id);
             for child_q in input_box.quantifiers.iter() {
                 model.get_quantifier(*child_q).borrow_mut().parent_box = box_id;
                 outer_box.quantifiers.insert(*child_q);
@@ -235,11 +231,11 @@ impl Rule for ConstantLifting {
         // No need to handle outer joins here since, once they are
         // normalized, their preserving quantifier is in a Select box.
         // TODO(asenac) grouping and unions
-        model.get_box(box_id).borrow().is_select()
+        model.get_box(box_id).is_select()
     }
 
     fn action(&mut self, model: &mut Model, box_id: BoxId) {
-        let mut the_box = model.get_box(box_id).borrow_mut();
+        let mut the_box = model.get_mut_box(box_id);
 
         // Dereference all column references and check whether the referenced
         // expression is constant within the context of the box it belongs to.
@@ -248,7 +244,7 @@ impl Rule for ConstantLifting {
                 if let BoxScalarExpr::ColumnReference(c) = e {
                     let q = model.get_quantifier(c.quantifier_id).borrow();
                     if let QuantifierType::Foreach = q.quantifier_type {
-                        let input_box = model.get_box(q.input_box).borrow();
+                        let input_box = model.get_box(q.input_box);
                         if !input_box.is_data_source()
                             && input_box.columns[c.position]
                                 .expr
