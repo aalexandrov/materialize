@@ -137,6 +137,64 @@ impl<'a> Lowerer<'a> {
                         .collect_vec(),
                 )
             }
+            BoxType::Grouping(grouping) => {
+                // Note: a grouping box must only contain a single quantifier but we can still
+                // re-use `lower_join` for single quantifier joins
+                let (mut input, column_map) =
+                    self.lower_join(get_outer, outer_column_map, &the_box.quantifiers, id_gen);
+
+                // Build the reduction
+                let group_key = grouping
+                    .key
+                    .iter()
+                    .map(|k| Self::lower_expression(k, &column_map))
+                    .collect_vec();
+                let aggregates = the_box
+                    .columns
+                    .iter()
+                    .filter_map(|c| {
+                        if let BoxScalarExpr::Aggregate {
+                            func,
+                            expr,
+                            distinct,
+                        } = &c.expr
+                        {
+                            Some(expr::AggregateExpr {
+                                func: func.clone(),
+                                expr: Self::lower_expression(expr, &column_map),
+                                distinct: *distinct,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec();
+                input = SR::Reduce {
+                    input: Box::new(input),
+                    group_key,
+                    aggregates,
+                    monotonic: false,
+                    expected_group_size: None,
+                };
+
+                // Put the columns in the same order as projected by the Grouping box by
+                // adding an additional projection
+                let mut aggregate_count = 0;
+                let projection = the_box.columns.iter().map(|c| {
+                    if let BoxScalarExpr::Aggregate { .. } = &c.expr {
+                        let aggregate_pos = grouping.key.len() + aggregate_count;
+                        aggregate_count += 1;
+                        aggregate_pos
+                    } else {
+                        grouping
+                            .key
+                            .iter()
+                            .position(|k| c.expr == **k)
+                            .expect("expression in the projection of a Grouping box not included in the grouping key")
+                    }
+                }).collect_vec();
+                input.project(projection)
+            }
             _ => panic!(),
         };
 
