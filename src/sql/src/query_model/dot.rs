@@ -157,12 +157,26 @@ impl<'a> DotGenerator<'a> {
 
         rows.push(format!("Distinct: {:?}", b.distinct));
 
+        let typed_column = |position: usize| -> String {
+            let e = &b.columns[position].expr;
+            if with_types {
+                format!(
+                    "{} ({})",
+                    e,
+                    self.expr_humanizer
+                        .humanize_column_type(&b.column_type(model, position))
+                )
+            } else {
+                format!("{}", e)
+            }
+        };
+
         // The projection of the box
         for (i, c) in b.columns.iter().enumerate() {
             if let Some(alias) = &c.alias {
-                rows.push(format!("{}: {} as {}", i, c.expr, alias.as_str()));
+                rows.push(format!("{}: {} as {}", i, typed_column(i), alias.as_str()));
             } else {
-                rows.push(format!("{}: {}", i, c.expr));
+                rows.push(format!("{}: {}", i, typed_column(i)));
             }
         }
 
