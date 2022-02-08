@@ -2,30 +2,31 @@
 name = "billing-demo"
 description = "Microservice demo using Materialize to power a real-time billing usecase"
 version = "0.0.0"
-edition = "2018"
+edition = "2021"
 publish = false
+rust-version = "1.58.0"
 
 [dependencies]
-anyhow = "1.0.44"
+anyhow = "1.0.52"
 bytes = "1.1.0"
 chrono = { version = "0.4.0", default-features = false, features = ["clock", "std"] }
+clap = { version = "3.0.14", features = ["derive"] }
 csv = "1.1.6"
 env_logger = "0.9.0"
-futures = "0.3.17"
+futures = "0.3.21"
 futures-channel = "0.3.16"
 hex = "0.4.3"
-log = "0.4.13"
-ore = { path = "../../src/ore" }
+tracing = "0.1.30"
+ore = { path = "../../src/ore", features = ["task"] }
 postgres-types = { git = "https://github.com/MaterializeInc/rust-postgres", branch = "mz-0.7.2" }
-protobuf = "2.23.0"
+prost = "0.9.0"
+prost-types = "0.9.0"
 rand = "0.8.4"
-rand_distr = "0.4.2"
-repr = { path = "../../src/repr" }
-structopt = "0.3.23"
+rand_distr = "0.4.3"
 test-util = { path = "../../test/test-util" }
-tokio = "1.12.0"
+tokio = "1.16.1"
 tokio-postgres = { git = "https://github.com/MaterializeInc/rust-postgres", branch = "mz-0.7.2" }
 uuid = { version = "0.8.2", features = ["v4"] }
 
 [build-dependencies]
-protoc = { path = "../../src/protoc" }
+prost-build = "0.9.1"
