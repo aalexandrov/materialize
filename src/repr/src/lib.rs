@@ -28,6 +28,8 @@ mod relation_and_scalar;
 mod row;
 mod scalar;
 
+pub mod parse;
+
 pub mod adt;
 pub mod chrono;
 pub mod global_id;
@@ -35,7 +37,6 @@ pub mod proto;
 pub mod strconv;
 pub mod url;
 pub mod util;
-
 pub use datum_vec::{DatumVec, DatumVecBorrow};
 pub use global_id::GlobalId;
 pub use relation::{

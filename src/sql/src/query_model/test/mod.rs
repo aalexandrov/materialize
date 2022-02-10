@@ -20,6 +20,7 @@ use crate::query_model::test::catalog::TestCatalog;
 use crate::query_model::Model;
 
 pub(crate) mod catalog;
+pub(crate) mod dsl;
 pub(crate) mod util;
 
 /// Tests to run on a Query Graph Model.
