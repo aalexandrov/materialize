@@ -8,6 +8,7 @@
 // by the Apache License, Version 2.0.
 
 use crate::query_model::model::*;
+use mz_repr::adt::varchar::VarCharMaxLength;
 use mz_repr::*;
 
 pub(crate) fn cref(quantifier_id: QuantifierId, position: usize) -> ColumnReference {
@@ -28,7 +29,6 @@ pub(crate) mod qgm {
     }
 }
 
-// #[allow(dead_code)]
 pub(crate) mod exp {
     use super::*;
 
@@ -160,13 +160,20 @@ pub(crate) mod exp {
         use super::*;
 
         pub(crate) fn int32(value: i32) -> BoxScalarExpr {
-            BoxScalarExpr::Literal(Row::pack(&[Datum::Int32(value)]), typ::int32(true))
+            BoxScalarExpr::Literal(Row::pack(&[Datum::from(value)]), typ::int32(true))
         }
     }
 }
 
 pub(crate) mod typ {
     use super::*;
+
+    pub(crate) fn bool(nullable: bool) -> ColumnType {
+        ColumnType {
+            scalar_type: ScalarType::Bool,
+            nullable,
+        }
+    }
 
     pub(crate) fn int32(nullable: bool) -> ColumnType {
         ColumnType {
@@ -175,9 +182,24 @@ pub(crate) mod typ {
         }
     }
 
-    pub(crate) fn bool(nullable: bool) -> ColumnType {
+    pub(crate) fn float32(nullable: bool) -> ColumnType {
         ColumnType {
-            scalar_type: ScalarType::Bool,
+            scalar_type: ScalarType::Float32,
+            nullable,
+        }
+    }
+
+    pub(crate) fn string(nullable: bool) -> ColumnType {
+        ColumnType {
+            scalar_type: ScalarType::String,
+            nullable,
+        }
+    }
+
+    pub(crate) fn varchar(max_length: Option<i64>, nullable: bool) -> ColumnType {
+        let max_length = max_length.map(|l| VarCharMaxLength::try_from(l).unwrap());
+        ColumnType {
+            scalar_type: ScalarType::VarChar { max_length },
             nullable,
         }
     }
