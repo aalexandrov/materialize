@@ -16,7 +16,7 @@ fallible-iterator = "0.2.0"
 futures = "0.3.21"
 lazy_static = "1.0.0"
 materialized = { path = "../materialized" }
-md-5 = "0.10.0"
+md-5 = "0.10.1"
 ore = { path = "../ore", features = ["task"] }
 pgrepr = { path = "../pgrepr" }
 postgres-protocol = { git = "https://github.com/MaterializeInc/rust-postgres", branch = "mz-0.7.2" }
