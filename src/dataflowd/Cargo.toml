@@ -8,7 +8,7 @@ rust-version = "1.58.0"
 
 [dependencies]
 anyhow = "1.0.52"
-async-trait = "0.1.52"
+async-trait = "0.1.56"
 clap = { version = "3.0.14", features = ["derive", "env"] }
 dataflow-types = { path = "../dataflow-types" }
 dataflow = { path = "../dataflow" }
