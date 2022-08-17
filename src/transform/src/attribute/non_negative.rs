@@ -13,7 +13,7 @@ use mz_expr::Id;
 use mz_expr::MirRelationExpr;
 
 use super::subtree_size::SubtreeSize;
-use super::{Attribute, Env};
+use super::{newapi, Attribute, Env};
 
 /// Traverses a [`MirRelationExpr`] tree and figures out whether for subtree
 /// the sum of all diffs up to a specific time for any record can be a
@@ -36,6 +36,26 @@ pub struct NonNegative {
     /// A vector of results for all nodes in the visited tree in
     /// post-visit order.
     pub results: Vec<bool>,
+}
+
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct NonNegativeSpec;
+
+impl newapi::AttributeSpec for NonNegativeSpec {
+    type Value = bool;
+
+    fn requires(&self) -> Vec<newapi::Attribute> {
+        vec![] // FIXME
+    }
+}
+
+impl Into<newapi::AttributeAlgorithm<NonNegativeSpec>> for NonNegativeSpec {
+    fn into(self) -> newapi::AttributeAlgorithm<NonNegativeSpec> {
+        newapi::AttributeAlgorithm {
+            results: Default::default(),
+            env: Default::default(),
+        }
+    }
 }
 
 impl Attribute for NonNegative {

@@ -16,7 +16,6 @@ use mz_expr::{LocalId, MirRelationExpr};
 pub mod non_negative;
 pub mod subtree_size;
 
-/// A common interface to be implemented by all derived attributes.
 pub trait Attribute {
     /// The domain of the attribute values.
     type Value: Clone + Eq + PartialEq;
@@ -151,4 +150,157 @@ enum EnvTask<T> {
     Remove(LocalId),
     /// Do not do anything.
     NoOp,
+}
+
+mod newapi {
+
+    use differential_dataflow::algorithms;
+    use mz_expr::MirRelationExpr;
+    use std::{any::Any, collections::HashSet};
+
+    use super::{non_negative::NonNegativeSpec, Env};
+
+    // TODO rename to Attribute
+    /// A common interface to be implemented by all derived attributes.
+    pub trait AttributeSpec: Eq + Clone + std::hash::Hash + Into<AttributeAlgorithm<Self>> {
+        /// The domain of the attribute values.
+        type Value: Clone + Eq + PartialEq;
+
+        /// A vector of attributes that need to be derived before
+        /// this attribute.
+        fn requires(&self) -> Vec<Attribute> {
+            vec![] // FIXME
+        }
+    }
+
+    pub struct AttributeAlgorithm<S: AttributeSpec + Sized> {
+        pub results: Vec<S::Value>,
+        pub env: (), // TODO
+    }
+
+    #[derive(Eq, PartialEq, Clone, Hash)]
+    pub enum Attribute {
+        NonNegative(NonNegativeSpec), // TODO
+        SubtreeSize(NonNegativeSpec), // TODO
+    }
+
+    impl Attribute {
+        /// A vector of attributes that need to  be derived before
+        /// this attribute.
+        fn requires(&self) -> Vec<Attribute> {
+            todo!()
+            // match self {
+            //     Attribute::NonNegative(attr) => attr.requires(),
+            //     Attribute::SubtreeSize(attr) => attr.requires(),
+            // }
+        }
+
+        fn algorithm(self) -> Box<dyn Any> {
+            let algorithm = match self {
+                Attribute::NonNegative(spec) => {
+                    Into::<AttributeAlgorithm<NonNegativeSpec>>::into(spec)
+                }
+                Attribute::SubtreeSize(spec) => {
+                    Into::<AttributeAlgorithm<NonNegativeSpec>>::into(spec)
+                }
+            };
+            Box::new(algorithm)
+        }
+    }
+
+    /// A struct that represents an [`Attribute`] set that needs
+    /// to be present for some follow-up logic (most likely
+    /// transformation, but can also be pretty-printing or something
+    /// else).
+    pub struct RequiredAttributes {
+        attributes: Vec<Attribute>,
+        algorithms: Vec<Box<dyn Any>>,
+    }
+
+    impl From<HashSet<Attribute>> for RequiredAttributes {
+        /// Completes the set attributes with transitive dependencies
+        /// and wraps the result in a representation that is suitable
+        /// for attribute derivation in a minimum number of passes.
+        fn from(mut attributes: HashSet<Attribute>) -> Self {
+            // add missing dependencies required to derive this set of attributes
+            transitive_closure(&mut attributes);
+            // order transitive closure topologically based on dependency order
+            let attributes = dependency_order(attributes);
+            // derive algorithms for the corresponding attributes
+            let algorithms = attributes
+                .iter()
+                .cloned()
+                .map(Attribute::algorithm)
+                .collect::<Vec<_>>();
+
+            // wrap resulting vector a new RequiredAttributes instance
+            RequiredAttributes {
+                attributes,
+                algorithms,
+            }
+        }
+    }
+
+    impl RequiredAttributes {
+        /// Derive attributes for the entire model.
+        ///
+        /// The currently implementation assumes that all attributes
+        /// can be derived in a single bottom up pass.
+        pub(crate) fn derive(&self, expr: &MirRelationExpr) {
+            // while let Some((head, tail)) = attributes.split_first_mut() {
+            //     attributes = tail;
+            // }
+
+            todo!()
+        }
+    }
+
+    /// Consumes a set of attributes and produces a topologically sorted
+    /// version of the elements in that set based on the dependency
+    /// information provided by the [`Attribute::requires`] results.
+    ///
+    /// We use Kahn's algorithm[^1] to sort the input.
+    ///
+    /// [^1]: <https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm>
+    fn dependency_order(attributes: HashSet<Attribute>) -> Vec<Attribute> {
+        let mut rest = attributes.into_iter().collect::<Vec<_>>();
+        let mut seen = HashSet::new() as HashSet<Attribute>;
+        let mut sort = vec![] as Vec<Attribute>;
+
+        while !rest.is_empty() {
+            let (tail, head) = rest.into_iter().partition::<Vec<_>, _>(|attr| {
+                attr.requires()
+                    .into_iter()
+                    .filter(|req| !seen.contains(req))
+                    .next()
+                    .is_some()
+            });
+            rest = tail;
+            seen.extend(head.clone());
+            sort.extend(head);
+        }
+
+        sort
+    }
+
+    /// Compute the transitive closure of the given set of attributes.
+    fn transitive_closure(attributes: &mut HashSet<Attribute>) {
+        let mut diff = requirements(&attributes);
+
+        // iterate until no new attributes can be discovered
+        while !diff.is_empty() {
+            attributes.extend(diff);
+            diff = requirements(&attributes);
+        }
+    }
+
+    /// Compute the attributes required to derive the given set of `attributes` that are not
+    /// already in that set.
+    fn requirements(attributes: &HashSet<Attribute>) -> HashSet<Attribute> {
+        attributes
+            .iter()
+            .flat_map(|a| a.requires())
+            .filter(|a| !attributes.contains(a))
+            .collect::<HashSet<_>>()
+    }
 }
