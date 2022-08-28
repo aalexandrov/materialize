@@ -1603,7 +1603,7 @@ checksum = "0e25ea47919b1560c4e3b7fe0aaab9becf5b84a10325ddf7db0f0ba5e1026499"
 [[package]]
 name = "differential-dataflow"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/differential-dataflow.git#19808dc71b38d8a0c804ffae96d32868e64b20c1"
+source = "git+https://github.com/TimelyDataflow/differential-dataflow.git#78e7319000d2873f70292ea404abe13922dd33af"
 dependencies = [
  "abomonation",
  "abomonation_derive",
@@ -1640,7 +1640,7 @@ checksum = "923dea538cea0aa3025e8685b20d6ee21ef99c4f77e954a30febbaac5ec73a97"
 [[package]]
 name = "dogsdogsdogs"
 version = "0.1.0"
-source = "git+https://github.com/TimelyDataflow/differential-dataflow.git#19808dc71b38d8a0c804ffae96d32868e64b20c1"
+source = "git+https://github.com/TimelyDataflow/differential-dataflow.git#78e7319000d2873f70292ea404abe13922dd33af"
 dependencies = [
  "abomonation",
  "abomonation_derive",
@@ -5629,7 +5629,7 @@ dependencies = [
 [[package]]
 name = "timely"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/timely-dataflow#3cf154011cfc62f71257a2eeadf1c772775f1874"
+source = "git+https://github.com/TimelyDataflow/timely-dataflow#1f3a315354ce6d41185a8f26c8a71e883adc1ef9"
 dependencies = [
  "abomonation",
  "abomonation_derive",
@@ -5656,12 +5656,12 @@ dependencies = [
 [[package]]
 name = "timely_bytes"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/timely-dataflow#3cf154011cfc62f71257a2eeadf1c772775f1874"
+source = "git+https://github.com/TimelyDataflow/timely-dataflow#1f3a315354ce6d41185a8f26c8a71e883adc1ef9"
 
 [[package]]
 name = "timely_communication"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/timely-dataflow#3cf154011cfc62f71257a2eeadf1c772775f1874"
+source = "git+https://github.com/TimelyDataflow/timely-dataflow#1f3a315354ce6d41185a8f26c8a71e883adc1ef9"
 dependencies = [
  "abomonation",
  "abomonation_derive",
@@ -5677,7 +5677,7 @@ dependencies = [
 [[package]]
 name = "timely_container"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/timely-dataflow#3cf154011cfc62f71257a2eeadf1c772775f1874"
+source = "git+https://github.com/TimelyDataflow/timely-dataflow#1f3a315354ce6d41185a8f26c8a71e883adc1ef9"
 dependencies = [
  "columnation",
  "serde",
@@ -5686,7 +5686,7 @@ dependencies = [
 [[package]]
 name = "timely_logging"
 version = "0.12.0"
-source = "git+https://github.com/TimelyDataflow/timely-dataflow#3cf154011cfc62f71257a2eeadf1c772775f1874"
+source = "git+https://github.com/TimelyDataflow/timely-dataflow#1f3a315354ce6d41185a8f26c8a71e883adc1ef9"
 
 [[package]]
 name = "tinytemplate"
