@@ -1,0 +1,767 @@
+# Copyright Materialize, Inc. and contributors. All rights reserved.
+#
+# Use of this software is governed by the Business Source License
+# included in the LICENSE file at the root of this repository.
+#
+# As of the Change Date specified in that file, in accordance with
+# the Business Source License, use of this software will be governed
+# by the Apache License, Version 2.0.
+
+
+statement ok
+CREATE TABLE t (
+  a int,
+  b int
+)
+
+statement ok
+CREATE TABLE u (
+  c int,
+  d int
+)
+
+statement ok
+CREATE TABLE v (
+  e int,
+  f int
+)
+
+statement ok
+CREATE INDEX t_a_idx ON T(a);
+
+statement ok
+CREATE VIEW ov AS SELECT * FROM t ORDER BY b asc, a desc LIMIT 5
+
+statement ok
+CREATE VIEW iv AS
+SELECT * FROM t WHERE a IS NOT NULL
+
+statement ok
+CREATE DEFAULT INDEX ON iv
+
+statement ok
+CREATE MATERIALIZED VIEW mv AS
+SELECT * FROM t WHERE a IS NOT NULL
+
+mode cockroach
+
+# Test constant error.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT 1 / 0
+----
+%0 =
+| Constant Err("division by zero")
+
+EOF
+
+# Test constant with two elements.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+(SELECT 1, 2) UNION ALL (SELECT 1, 2) UNION ALL (SELECT 3, 4)
+----
+%0 =
+| Constant ((1, 2) x 2) (3, 4)
+
+EOF
+
+# Test basic linear chains (fast path).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT 1, a + b as c FROM t WHERE a > 0 and b < 0 and a + b > 0
+----
+%0 =
+| ReadExistingIndex materialize.public.t_a_idx
+| Map (#0 + #1), 1
+| Filter (#0 > 0), (#1 < 0), (#2 > 0)
+| Project (#3, #2)
+
+EOF
+
+# Test basic linear chains (slow path).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT 1, a + b as c FROM mv WHERE a > 0 and b < 0 and a + b > 0
+----
+Source materialize.public.mv (u8):
+| Filter (#0 > 0), (#1 < 0), ((#0 + #1) > 0)
+| Project (#0, #1)
+
+Query:
+%0 =
+| Get materialize.public.mv (u8)
+| Map (#0 + #1), 1
+| Filter (#1 < 0), (#0 > 0), (#2 > 0)
+| Project (#3, #2)
+
+EOF
+
+# Test table functions in the select clause (FlatMap).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT generate_series(a, b) from t
+----
+%0 =
+| Get materialize.public.t (u1)
+| FlatMap generate_series(#0, #1, 1)
+| Project (#2)
+
+EOF
+
+# Test Threshold, Union, Distinct, Negate.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a FROM t EXCEPT SELECT b FROM mv
+----
+Source materialize.public.mv (u8):
+| Map dummy
+| Project (#2, #1)
+
+Query:
+%0 =
+| Get materialize.public.t (u1)
+| Project (#0)
+| Distinct group=(#0)
+
+%1 =
+| Get materialize.public.mv (u8)
+| Project (#1)
+| Distinct group=(#0)
+| Negate
+
+%2 =
+| Union %0 %1
+| Threshold
+
+EOF
+
+# Test Threshold, Union, Distinct, Negate.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a FROM t EXCEPT ALL SELECT b FROM mv
+----
+Source materialize.public.mv (u8):
+| Map dummy
+| Project (#2, #1)
+
+Query:
+%0 =
+| Get materialize.public.t (u1)
+| Project (#0)
+
+%1 =
+| Get materialize.public.mv (u8)
+| Project (#1)
+| Negate
+
+%2 =
+| Union %0 %1
+| Threshold
+
+EOF
+
+# Test TopK.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+VIEW ov
+----
+%0 =
+| Get materialize.public.t (u1)
+| TopK group=() order=(#1 asc nulls_last, #0 desc nulls_first) limit=5 offset=0
+
+EOF
+
+# Test Finish.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT * FROM t ORDER BY b asc, a desc LIMIT 5
+----
+%0 =
+| ReadExistingIndex materialize.public.t_a_idx
+
+EOF
+
+# Test Reduce (global).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT abs(min(a) - max(a)) FROM t
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Project (#0)
+| Reduce group=()
+| | agg min(#0)
+| | agg max(#0)
+
+%1 =
+| Get %0 (l0)
+| Project ()
+| Negate
+
+%2 =
+| Constant ()
+
+%3 =
+| Union %1 %2
+| Map null, null
+
+%4 =
+| Union %0 %3
+| Map abs((#0 - #1))
+| Project (#2)
+
+EOF
+
+# Test Reduce (local).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT abs(min(a) - max(a)) FROM t GROUP BY b
+----
+%0 =
+| Get materialize.public.t (u1)
+| Reduce group=(#1)
+| | agg min(#0)
+| | agg max(#0)
+| Map abs((#1 - #2))
+| Project (#3)
+
+EOF
+
+# Test EXISTS subqueries.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT * FROM t WHERE EXISTS(SELECT * FROM mv WHERE t.a < mv.a) AND EXISTS(SELECT * FROM mv WHERE t.b > mv.b)
+----
+Source materialize.public.mv (u8):
+| Project (#0, #1)
+
+Query:
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0)
+
+%1 =
+| Get materialize.public.t (u1)
+| Project (#0)
+| Distinct group=(#0)
+| ArrangeBy ()
+
+%2 =
+| Get materialize.public.mv (u8)
+| Project (#0)
+
+%3 =
+| Join %1 %2
+| | implementation = Differential %2 %1.()
+| Filter (#0 < #1)
+| Project (#0)
+| Distinct group=(#0)
+| ArrangeBy (#0)
+
+%4 = Let l0 =
+| Join %0 %3 (= #0 #2)
+| | implementation = DeltaQuery
+| |   delta %0 %3.(#0)
+| |   delta %3 %0.(#0)
+| Project (#0, #1)
+
+%5 =
+| Get %4 (l0)
+| Project (#1)
+| Distinct group=(#0)
+| ArrangeBy ()
+
+%6 =
+| Get materialize.public.mv (u8)
+| Project (#1)
+
+%7 =
+| Join %5 %6
+| | implementation = Differential %6 %5.()
+| Filter (#0 > #1)
+| Project (#0)
+| Distinct group=(#0)
+| ArrangeBy (#0)
+
+%8 =
+| Join %4 %7 (= #1 #2)
+| | implementation = Differential %4 %7.(#0)
+| Project (#0, #1)
+
+EOF
+
+# Test SELECT subqueries.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT (SELECT iv.a FROM iv WHERE iv.b = t.b LIMIT 1), (SELECT mv.a FROM mv WHERE mv.b = t.b LIMIT 1) FROM t
+----
+Source materialize.public.mv (u8):
+| Filter (#1) IS NOT NULL
+| Project (#0, #1)
+
+Query:
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Project (#1)
+
+%1 = Let l1 =
+| Get %0 (l0)
+| Distinct group=(#0)
+
+%2 = Let l2 =
+| Get %1 (l1)
+| ArrangeBy (#0)
+
+%3 =
+| Get materialize.public.iv (u6)
+| Filter (#1) IS NOT NULL
+
+%4 = Let l3 =
+| Join %2 %3 (= #0 #2)
+| | implementation = Differential %3 %2.(#0)
+| Project (#0, #1)
+| TopK group=(#0) order=() limit=1 offset=0
+
+%5 =
+| Get materialize.public.mv (u8)
+| Filter (#1) IS NOT NULL
+
+%6 = Let l4 =
+| Join %2 %5 (= #0 #2)
+| | implementation = Differential %5 %2.(#0)
+| Project (#0, #1)
+| TopK group=(#0) order=() limit=1 offset=0
+
+%7 =
+| Get %4 (l3)
+| Project (#0)
+| Negate
+
+%8 =
+| Union %7 %1
+| Map null
+
+%9 =
+| Union %4 %8
+| ArrangeBy (#0)
+
+%10 =
+| Get %6 (l4)
+| Project (#0)
+| Negate
+
+%11 =
+| Union %10 %1
+| Map null
+
+%12 =
+| Union %6 %11
+| ArrangeBy (#0)
+
+%13 =
+| Join %0 %9 %12 (= #0 #1 #3)
+| | implementation = Differential %0 %9.(#0) %12.(#0)
+| Project (#2, #4)
+
+EOF
+
+# Test outer joins (ON syntax).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT t1.a, t2.a
+FROM t as t1
+LEFT JOIN t as t2 ON t1.b = t2.b
+RIGHT JOIN t as t3 ON t2.b = t3.b
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Filter (#1) IS NOT NULL
+
+%1 = Let l1 =
+| Get %0 (l0)
+| ArrangeBy (#1)
+
+%2 =
+| Get %0 (l0)
+| Project (#1)
+
+%3 = Let l2 =
+| Join %1 %1 %2 (= #1 #3 #4)
+| | implementation = Differential %2 %1.(#1) %1.(#1)
+| Project (#0..=#2)
+
+%4 =
+| Get materialize.public.t (u1)
+| Project (#1)
+
+%5 =
+| Get %3 (l2)
+| Project (#1)
+| Distinct group=(#0)
+| ArrangeBy (#0)
+
+%6 =
+| Join %4 %5 (= #0 #1)
+| | implementation = Differential %4 %5.(#0)
+| Project ()
+| Negate
+
+%7 =
+| Get materialize.public.t (u1)
+| Project ()
+
+%8 =
+| Union %6 %7
+| Map null, null
+
+%9 =
+| Get %3 (l2)
+| Project (#0, #2)
+
+%10 =
+| Union %8 %9
+
+EOF
+
+# Test a single CTE.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+WITH x AS (SELECT t.a * t.b as v from t) SELECT a.v + b.v FROM x as a, x as b
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Map (#0 * #1)
+| Project (#2)
+
+%1 =
+| Get %0 (l0)
+| ArrangeBy ()
+
+%2 =
+| Join %1 %0
+| | implementation = Differential %0 %1.()
+| Map (#0 + #1)
+| Project (#2)
+
+EOF
+
+# Test multiple CTEs: a case where we cannot pull the let statement up through
+# the join because the local l0 is correlated against the lhs of the enclosing join.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT
+  *
+FROM
+  (
+    SELECT * FROM t
+  ) as r1
+  CROSS JOIN LATERAL (
+    WITH r2 as (
+      SELECT MAX(r1.a * t.a) AS m FROM t
+    )
+    SELECT * FROM r2 WHERE r2.m != r1.a
+  ) as r3
+  CROSS JOIN LATERAL (
+    WITH r4 as (
+      SELECT MAX(r1.a * t.a) AS m FROM t
+    )
+    SELECT * FROM r4 WHERE r4.m != r1.a OR (r4.m IS NOT NULL AND r1.a IS NULL)
+  ) as r5;
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Project (#0)
+
+%1 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0)
+
+%2 =
+| Get %0 (l0)
+| Distinct group=(#0)
+| ArrangeBy ()
+
+%3 =
+| Join %2 %0
+| | implementation = Differential %0 %2.()
+| Reduce group=(#0)
+| | agg max((#0 * #1))
+| ArrangeBy (#0)
+
+%4 = Let l1 =
+| Join %1 %3 (= #0 #2)
+| | implementation = DeltaQuery
+| |   delta %1 %3.(#0)
+| |   delta %3 %1.(#0)
+| Filter (#0 != #3)
+| Project (#0, #1, #3)
+
+%5 =
+| Get %4 (l1)
+| Project (#0)
+| Distinct group=(#0)
+| ArrangeBy ()
+
+%6 =
+| Join %5 %0
+| | implementation = Differential %0 %5.()
+| Reduce group=(#0)
+| | agg max((#0 * #1))
+| ArrangeBy (#0)
+
+%7 =
+| Join %4 %6 (= #0 #3)
+| | implementation = Differential %4 %6.(#0)
+| Filter ((#0 != #4) OR ((#4) IS NOT NULL AND (#0) IS NULL))
+| Project (#0..=#2, #4)
+
+EOF
+
+# Test cross join.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT t1.a, t2.a FROM t as t1, t as t2
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Project (#0)
+
+%1 =
+| Get %0 (l0)
+| ArrangeBy ()
+
+%2 =
+| Join %1 %0
+| | implementation = Differential %0 %1.()
+
+EOF
+
+# Test cyclic join.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT t1.a, t2.a
+FROM
+  t as t1,
+  t as t2,
+  t as t3
+WHERE t1.b = t2.b AND t2.b = t3.b
+----
+%0 = Let l0 =
+| Get materialize.public.t (u1)
+| Filter (#1) IS NOT NULL
+
+%1 = Let l1 =
+| Get %0 (l0)
+| ArrangeBy (#1)
+
+%2 =
+| Get %0 (l0)
+| Project (#1)
+
+%3 =
+| Join %1 %1 %2 (= #1 #3 #4)
+| | implementation = Differential %2 %1.(#1) %1.(#1)
+| Project (#0, #2)
+
+EOF
+
+# Create indexes required for differential join tests
+
+statement ok
+CREATE INDEX u_c_idx ON U(c);
+
+statement ok
+CREATE INDEX u_d_idx ON U(d);
+
+statement ok
+CREATE INDEX v_e_idx ON V(e);
+
+# Test a differential join.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, b, c, d, e, f
+FROM t, u, v
+WHERE a = c and d = e and b = f
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0)
+
+%1 =
+| Get materialize.public.u (u2)
+| ArrangeBy (#0)
+
+%2 =
+| Get materialize.public.v (u3)
+| Filter (#0) IS NOT NULL, (#1) IS NOT NULL
+| ArrangeBy (#0, #1)
+
+%3 =
+| Join %0 %1 %2 (= #0 #2) (= #1 #5) (= #3 #4)
+| | implementation = Differential %1.(#0) %0.(#0) %2.(#0, #1)
+| Filter (#0) IS NOT NULL
+| Project (#0, #1, #0, #3, #3, #1)
+
+EOF
+
+# Test a differential join WITH(join_impls).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, b, c, d, e, f
+FROM t, u, v
+WHERE a = c and d = e and b = f
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0)
+
+%1 =
+| Get materialize.public.u (u2)
+| ArrangeBy (#0)
+
+%2 =
+| Get materialize.public.v (u3)
+| Filter (#0) IS NOT NULL, (#1) IS NOT NULL
+| ArrangeBy (#0, #1)
+
+%3 =
+| Join %0 %1 %2 (= #0 #2) (= #1 #5) (= #3 #4)
+| | implementation = Differential %1.(#0) %0.(#0) %2.(#0, #1)
+| Filter (#0) IS NOT NULL
+| Project (#0, #1, #0, #3, #3, #1)
+
+EOF
+
+# Create indexes required for delta join tests
+
+statement ok
+CREATE INDEX t_b_idx ON T(b);
+
+# Test a delta join WITH(join_impls).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, b, c, d, e, f
+FROM t, u, v
+WHERE b = c and d = e
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#1)
+
+%1 =
+| Get materialize.public.u (u2)
+| ArrangeBy (#0) (#1)
+
+%2 =
+| Get materialize.public.v (u3)
+| ArrangeBy (#0)
+
+%3 =
+| Join %0 %1 %2 (= #1 #2) (= #3 #4)
+| | implementation = DeltaQuery
+| |   delta %0 %1.(#0) %2.(#0)
+| |   delta %1 %0.(#1) %2.(#0)
+| |   delta %2 %1.(#1) %0.(#1)
+| Filter (#1) IS NOT NULL, (#3) IS NOT NULL
+| Project (#0, #1, #1, #3, #3, #5)
+
+EOF
+
+# Test a delta join WITH(join_impls).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, b, c, d, e, f
+FROM t, u, v
+WHERE b = c and d = e
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#1)
+
+%1 =
+| Get materialize.public.u (u2)
+| ArrangeBy (#0) (#1)
+
+%2 =
+| Get materialize.public.v (u3)
+| ArrangeBy (#0)
+
+%3 =
+| Join %0 %1 %2 (= #1 #2) (= #3 #4)
+| | implementation = DeltaQuery
+| |   delta %0 %1.(#0) %2.(#0)
+| |   delta %1 %0.(#1) %2.(#0)
+| |   delta %2 %1.(#1) %0.(#1)
+| Filter (#1) IS NOT NULL, (#3) IS NOT NULL
+| Project (#0, #1, #1, #3, #3, #5)
+
+EOF
+
+# Test an IndexedFilter join.
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, max(b)
+FROM t
+WHERE a = 0
+GROUP BY a
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0)
+
+%1 =
+| Constant (0)
+
+%2 =
+| Join %0 %1 (= #0 #2)
+| | implementation = IndexedFilter (#0 = 0)
+| Project (#1)
+| Reduce group=()
+| | agg max(#0)
+| Map 0
+| Project (#1, #0)
+
+EOF
+
+# Create index for IndexedFilter test
+
+statement ok
+CREATE INDEX t_a_b_idx ON T(a,b)
+
+# Test an IndexedFilter join WITH(join_impls).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT a, max(b)
+FROM t
+WHERE (a = 0 AND b = 1) OR (a = 3 AND b = 4) OR (a = 7 AND b = 8)
+GROUP BY a
+----
+%0 =
+| Get materialize.public.t (u1)
+| ArrangeBy (#0, #1)
+
+%1 =
+| Constant (0, 1) (3, 4) (7, 8)
+
+%2 =
+| Join %0 %1 (= #0 #2) (= #1 #3)
+| | implementation = IndexedFilter (#0 = 0 AND #1 = 1) OR (#0 = 3 AND #1 = 4) OR (#0 = 7 AND #1 = 8)
+| Project (#0, #1)
+| Reduce group=(#0)
+| | agg max(#1)
+
+EOF
+
+# Test an IndexedFilter join on fast path WITH(join_impls).
+query T multiline
+EXPLAIN OPTIMIZED PLAN FOR
+SELECT *
+FROM t
+WHERE (a = 0 AND b = 1) OR (a = 3 AND b = 4) OR (a = 7 AND b = 8)
+----
+%0 =
+| ReadExistingIndex materialize.public.t_a_b_idx
+| | Lookup values [(0, 1); (3, 4); (7, 8)]
+| Project (#0, #1)
+
+EOF
