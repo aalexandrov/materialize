@@ -485,6 +485,12 @@ impl MirScalarExpr {
     /// test.reduce(&input_type);
     /// assert_eq!(test, expr_t);
     /// ```
+    #[tracing::instrument(
+        target = "optimizer",
+        level = "trace",
+        skip_all,
+        fields(path.segment ="reduce_mir_scalar")
+    )]
     pub fn reduce(&mut self, column_types: &[ColumnType]) {
         let temp_storage = &RowArena::new();
         let eval = |e: &MirScalarExpr| {
@@ -493,7 +499,19 @@ impl MirScalarExpr {
 
         // Simplifications run in a loop until `self` no longer changes.
         let mut old_self = MirScalarExpr::column(0);
+        let mut i = 0_usize;
         while old_self != *self {
+            let _span = tracing::span!(
+                tracing::Level::TRACE,
+                "iteration",
+                target = "optimizer",
+                path.segment = format!("{:04}", i)
+            )
+            .entered();
+            // record result of iteration x under $path/$xxxx/reduce_mir_scalar
+            mz_ore::tracing::trace_plan(&*self);
+
+            i += 1;
             old_self = self.clone();
             #[allow(deprecated)]
             self.visit_mut_pre_post_nolimit(
@@ -1033,6 +1051,9 @@ impl MirScalarExpr {
                 },
             );
         }
+
+        // record end result under $path/reduce_mir_scalar
+        mz_ore::tracing::trace_plan(&*self);
 
         /* #region `reduce_list_create_list_index_literal` and helper functions */
 
