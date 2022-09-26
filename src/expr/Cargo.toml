@@ -28,7 +28,7 @@ itertools = "0.10.4"
 once_cell = "1.14.0"
 md-5 = "0.10.4"
 mz-lowertest = { path = "../lowertest" }
-mz-ore = { path = "../ore", features = ["tracing_"] }
+mz-ore = { path = "../ore" }
 mz-pgrepr = { path = "../pgrepr" }
 mz-repr = { path = "../repr" }
 mz-persist-types = { path = "../persist-types" }
@@ -45,7 +45,6 @@ serde_json = "1.0.85"
 serde_regex = "1.1.0"
 sha1 = "0.10.5"
 sha2 = "0.10.6"
-tracing = "0.1.36"
 uncased = "0.9.7"
 uuid = "1.1.2"
 proptest = { git = "https://github.com/MaterializeInc/proptest.git", default-features = false, features = ["std"] }
