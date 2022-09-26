@@ -56,12 +56,15 @@ impl<'a> Displayable<'a, MirRelationExpr> {
         // method as its HirRelationExpr counterpart
         self.fmt_raw_syntax(f, ctx)
     }
+
     fn fmt_raw_syntax(
         &self,
         f: &mut fmt::Formatter<'_>,
         ctx: &mut PlanRenderingContext<'_, MirRelationExpr>,
     ) -> fmt::Result {
         use MirRelationExpr::*;
+
+        let no_linear_chains = ctx.config.no_linear_chains;
 
         match &self.0 {
             Constant { rows, typ: _ } => match rows {
@@ -92,8 +95,8 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 // top to bottom
                 write!(f, "{}Let", ctx.indent)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| {
-                    Displayable::from(head).fmt_text(f, ctx)?;
+                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
                     writeln!(f, "{}Where", ctx.indent)?;
                     ctx.indented(|ctx| {
                         for (id, value) in bindings.iter().rev() {
@@ -121,25 +124,33 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 let outputs = Indices(outputs);
                 write!(f, "{}Project ({})", ctx.indent, outputs)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Map { scalars, input } => {
                 let scalars = separated_text(", ", scalars.iter().map(Displayable::from));
                 write!(f, "{}Map ({})", ctx.indent, scalars)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             FlatMap { input, func, exprs } => {
                 let exprs = separated_text(", ", exprs.iter().map(Displayable::from));
                 write!(f, "{}FlatMap {}({})", ctx.indent, func, exprs)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Filter { predicates, input } => {
                 let predicates = separated_text(" AND ", predicates.iter().map(Displayable::from));
                 write!(f, "{}Filter {}", ctx.indent, predicates)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Join {
                 inputs,
@@ -276,7 +287,9 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                     write!(f, " exp_group_size={}", expected_group_size)?;
                 }
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             TopK {
                 group_key,
@@ -303,17 +316,23 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 }
                 write!(f, " monotonic={}", monotonic)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Negate { input } => {
                 write!(f, "{}Negate", ctx.indent)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Threshold { input } => {
                 write!(f, "{}Threshold", ctx.indent)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
             Union { base, inputs } => {
                 write!(f, "{}Union", ctx.indent)?;
@@ -334,7 +353,9 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 );
                 write!(f, "{}ArrangeBy keys=[[{}]]", ctx.indent, keys)?;
                 self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx))?;
+                ctx.indented_if(no_linear_chains, |ctx| {
+                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
+                })?;
             }
         }
 

@@ -369,6 +369,10 @@ pub struct ExplainConfig {
     pub non_negative: bool,
     /// Show the slow path plan even if a fast path plan was created. Useful for debugging.
     pub no_fast_path: bool,
+    /// Do not restrict output trees to linear chains. Enforced if `raw_plans` is set.
+    pub no_linear_chains: bool,
+    /// Do not use sequential let bindings in the output. Enforced if `raw_plans` is set.
+    pub no_let_id_sequence: bool,
     /// Don't normalize plans before explaining them.
     pub raw_plans: bool,
     /// Disable virtual syntax in the explanation.
@@ -389,29 +393,31 @@ impl ExplainConfig {
 
 impl TryFrom<HashSet<String>> for ExplainConfig {
     type Error = anyhow::Error;
-    fn try_from(mut config_flags: HashSet<String>) -> Result<Self, anyhow::Error> {
+    fn try_from(mut flags: HashSet<String>) -> Result<Self, anyhow::Error> {
         // If `WITH(raw)` is specified, ensure that the config will be as
         // representative for the original plan as possible.
-        if config_flags.remove("raw") {
-            config_flags.insert("raw_plans".into());
-            config_flags.insert("raw_syntax".into());
+        if flags.remove("raw") {
+            flags.insert("raw_plans".into());
+            flags.insert("raw_syntax".into());
         }
         let result = ExplainConfig {
-            arity: config_flags.remove("arity"),
-            join_impls: config_flags.remove("join_impls"),
-            keys: config_flags.remove("keys"),
-            non_negative: config_flags.remove("non_negative"),
-            no_fast_path: config_flags.remove("no_fast_path"),
-            raw_plans: config_flags.remove("raw_plans"),
-            raw_syntax: config_flags.remove("raw_syntax"),
-            subtree_size: config_flags.remove("subtree_size"),
-            timing: config_flags.remove("timing"),
-            types: config_flags.remove("types"),
+            arity: flags.remove("arity"),
+            join_impls: flags.remove("join_impls"),
+            keys: flags.remove("keys"),
+            no_let_id_sequence: flags.remove("no_let_id_sequence") || flags.contains("raw_plans"),
+            no_linear_chains: flags.remove("no_linear_chains") || flags.contains("raw_plans"),
+            non_negative: flags.remove("non_negative"),
+            no_fast_path: flags.remove("no_fast_path"),
+            raw_plans: flags.remove("raw_plans"),
+            raw_syntax: flags.remove("raw_syntax"),
+            subtree_size: flags.remove("subtree_size"),
+            timing: flags.remove("timing"),
+            types: flags.remove("types"),
         };
-        if config_flags.is_empty() {
+        if flags.is_empty() {
             Ok(result)
         } else {
-            anyhow::bail!("unsupported 'EXPLAIN ... WITH' flags: {:?}", config_flags)
+            anyhow::bail!("unsupported 'EXPLAIN ... WITH' flags: {:?}", flags)
         }
     }
 }
@@ -765,6 +771,8 @@ mod tests {
             keys: false,
             non_negative: false,
             no_fast_path: false,
+            no_let_id_sequence: false,
+            no_linear_chains: false,
             raw_plans: false,
             raw_syntax: false,
             subtree_size: false,
