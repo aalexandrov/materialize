@@ -92,7 +92,7 @@ impl<'a> Displayable<'a, MirRelationExpr> {
 
                 writeln!(f, "{}With", ctx.indent)?;
                 ctx.indented(|ctx| {
-                    for (id, value) in bindings.iter() {
+                    for (id, value) in bindings.iter().rev() {
                         writeln!(f, "{}cte {} =", ctx.indent, *id)?;
                         ctx.indented(|ctx| Displayable::from(*value).fmt_text(f, ctx))?;
                     }

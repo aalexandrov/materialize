@@ -107,7 +107,7 @@ impl<'a> Displayable<'a, HirRelationExpr> {
 
                 writeln!(f, "{}With", ctx.indent)?;
                 ctx.indented(|ctx| {
-                    for (id, value) in bindings.iter() {
+                    for (id, value) in bindings.iter().rev() {
                         // TODO: print the name and not the id
                         writeln!(f, "{}cte {} =", ctx.indent, *id)?;
                         ctx.indented(|ctx| Displayable::from(*value).fmt_text(f, ctx))?;
