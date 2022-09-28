@@ -25,6 +25,10 @@ query T multiline
 EXPLAIN OPTIMIZED PLAN WITH(keys) AS TEXT FOR SELECT sum(a) FROM t
 ----
 Explained Query:
+  Return // { keys: "()" }
+    Union // { keys: "()" }
+      Get l0 // { keys: "([])" }
+      Get l2 // { keys: "([])" }
   With
     cte l2 =
       Map (null) // { keys: "()" }
@@ -40,10 +44,6 @@ Explained Query:
       Reduce aggregates=[sum(#0)] // { keys: "([])" }
       Project (#0) // { keys: "()" }
       Get materialize.public.t // { keys: "()" }
-  Return // { keys: "()" }
-    Union // { keys: "()" }
-      Get l0 // { keys: "([])" }
-      Get l2 // { keys: "([])" }
 
 Source materialize.public.t
   project=(#0, #2)
@@ -80,6 +80,11 @@ INNER JOIN
 ON t.b = u.d;
 ----
 Explained Query:
+  Return // { keys: "([])" }
+    Project (#1, #0, #2, #0) // { keys: "([])" }
+    Join on=(#0 = #3) type=differential // { keys: "([])" }
+      Get l0 // { keys: "([])" }
+      Get l1 // { keys: "([])" }
   With
     cte l1 =
       Filter (#0 = #1) // { keys: "([0], [1])" }
@@ -89,11 +94,6 @@ Explained Query:
       Reduce group_by=[#1] aggregates=[sum(#0)] // { keys: "([0])" }
       Filter (#1) IS NOT NULL // { keys: "()" }
       Get materialize.public.t // { keys: "()" }
-  Return // { keys: "([])" }
-    Project (#1, #0, #2, #0) // { keys: "([])" }
-    Join on=(#0 = #3) type=differential // { keys: "([])" }
-      Get l0 // { keys: "([])" }
-      Get l1 // { keys: "([])" }
 
 Source materialize.public.t
   filter=((#1) IS NOT NULL)
@@ -118,6 +118,11 @@ EXCEPT ALL
 (SELECT c, d::double FROM v WHERE c = 1)
 ----
 Explained Query:
+  Return // { keys: "()" }
+    Threshold // { keys: "()" }
+    Union // { keys: "()" }
+      Get l2 // { keys: "([])" }
+      Get l3 // { keys: "([])" }
   With
     cte l3 =
       Negate // { keys: "()" }
@@ -142,11 +147,6 @@ Explained Query:
       Project (#0) // { keys: "()" }
       Filter (#0) IS NOT NULL // { keys: "()" }
       Get materialize.public.u // { keys: "()" }
-  Return // { keys: "()" }
-    Threshold // { keys: "()" }
-    Union // { keys: "()" }
-      Get l2 // { keys: "([])" }
-      Get l3 // { keys: "([])" }
 
 Source materialize.public.t
   filter=((#1) IS NOT NULL)
@@ -165,6 +165,12 @@ EXPLAIN OPTIMIZED PLAN WITH(keys) AS TEXT FOR
 SELECT 1 = (Select * FROM generate_series(1, 100000) limit 3)
 ----
 Explained Query:
+  Return // { keys: "()" }
+    Project (#1) // { keys: "()" }
+    Map ((#0 = 1)) // { keys: "()" }
+    Union // { keys: "()" }
+      Get l2 // { keys: "()" }
+      Get l4 // { keys: "([])" }
   With
     cte l4 =
       Map (null) // { keys: "()" }
@@ -193,11 +199,5 @@ Explained Query:
       FlatMap generate_series(1, 100000, 1) // { keys: "()" }
       Constant // { keys: "([])" }
         - ()
-  Return // { keys: "()" }
-    Project (#1) // { keys: "()" }
-    Map ((#0 = 1)) // { keys: "()" }
-    Union // { keys: "()" }
-      Get l2 // { keys: "()" }
-      Get l4 // { keys: "([])" }
 
 EOF

@@ -32,6 +32,10 @@ query T multiline
 EXPLAIN OPTIMIZED PLAN WITH(types) AS TEXT FOR (SELECT * FROM v WHERE f) UNION ALL (SELECT * FROM v WHERE e IS NOT NULL)
 ----
 Explained Query:
+  Return // { types: "(double precision?, boolean?)" }
+    Union // { types: "(double precision?, boolean?)" }
+      Get l0 // { types: "(double precision?, boolean)" }
+      Get l1 // { types: "(double precision, boolean?)" }
   With
     cte l1 =
       Filter (#0) IS NOT NULL // { types: "(double precision, boolean?)" }
@@ -39,10 +43,6 @@ Explained Query:
     cte l0 =
       Filter #1 // { types: "(double precision?, boolean)" }
       Get materialize.public.v // { types: "(double precision?, boolean?)" }
-  Return // { types: "(double precision?, boolean?)" }
-    Union // { types: "(double precision?, boolean?)" }
-      Get l0 // { types: "(double precision?, boolean)" }
-      Get l1 // { types: "(double precision, boolean?)" }
 
 EOF
 
@@ -51,6 +51,10 @@ query T multiline
 EXPLAIN OPTIMIZED PLAN WITH(types) AS TEXT FOR (SELECT * FROM v WHERE e = 1.25) UNION ALL (SELECT * FROM v WHERE e IS NOT NULL)
 ----
 Explained Query:
+  Return // { types: "(double precision, boolean?)" }
+    Union // { types: "(double precision, boolean?)" }
+      Get l0 // { types: "(double precision, boolean?)" }
+      Get l1 // { types: "(double precision, boolean?)" }
   With
     cte l1 =
       Filter (#0) IS NOT NULL // { types: "(double precision, boolean?)" }
@@ -58,10 +62,6 @@ Explained Query:
     cte l0 =
       Filter (#0 = 1.25) // { types: "(double precision, boolean?)" }
       Get materialize.public.v // { types: "(double precision?, boolean?)" }
-  Return // { types: "(double precision, boolean?)" }
-    Union // { types: "(double precision, boolean?)" }
-      Get l0 // { types: "(double precision, boolean?)" }
-      Get l1 // { types: "(double precision, boolean?)" }
 
 EOF
 
@@ -73,18 +73,18 @@ EXCEPT
 (SELECT sum(a) as a, max(b) as b, c FROM t GROUP BY c)
 ----
 Explained Query:
-  With
-    cte l0 =
-      Negate // { types: "(bigint?, text?, date?)" }
-      Project (#1, #2, #0) // { types: "(bigint?, text?, date?)" }
-      Reduce group_by=[#2] aggregates=[sum(#0), max(#1)] // { types: "(date?, bigint?, text?)" }
-      Get materialize.public.t // { types: "(integer?, text?, date?)" }
   Return // { types: "(bigint?, text?, date?)" }
     Threshold // { types: "(bigint?, text?, date?)" }
     Union // { types: "(bigint?, text?, date?)" }
       Get l0 // { types: "(bigint?, text?, date?)" }
       Constant // { types: "(bigint?, text?, date?)" }
         - (1, "hello", null)
+  With
+    cte l0 =
+      Negate // { types: "(bigint?, text?, date?)" }
+      Project (#1, #2, #0) // { types: "(bigint?, text?, date?)" }
+      Reduce group_by=[#2] aggregates=[sum(#0), max(#1)] // { types: "(date?, bigint?, text?)" }
+      Get materialize.public.t // { types: "(integer?, text?, date?)" }
 
 EOF
 
@@ -95,6 +95,10 @@ EXPLAIN OPTIMIZED PLAN WITH(types) AS TEXT FOR
 SELECT t.* FROM u LEFT OUTER JOIN t on t.a = u.d
 ----
 Explained Query:
+  Return // { types: "(integer?, text?, date?)" }
+    Union // { types: "(integer?, text?, date?)" }
+      Get l6 // { types: "(integer?, text?, date?)" }
+      Get l2 // { types: "(integer, text?, date?)" }
   With
     cte l6 =
       Map (null, null, null) // { types: "(integer?, text?, date?)" }
@@ -127,10 +131,6 @@ Explained Query:
       ArrangeBy keys=[[#0]] // { types: "(integer)" }
       Filter (#0) IS NOT NULL // { types: "(integer)" }
       Get materialize.public.u // { types: "(integer?)" }
-  Return // { types: "(integer?, text?, date?)" }
-    Union // { types: "(integer?, text?, date?)" }
-      Get l6 // { types: "(integer?, text?, date?)" }
-      Get l2 // { types: "(integer, text?, date?)" }
 
 Source materialize.public.t
   filter=((#0) IS NOT NULL)
@@ -142,6 +142,12 @@ EXPLAIN OPTIMIZED PLAN WITH(types) AS TEXT FOR
 (SELECT null::boolean as f1, 10 as f2) EXCEPT (SELECT min(f), count(*) FROM v WHERE (select d::double FROM u) = v.e GROUP BY e LIMIT 1)
 ----
 Explained Query:
+  Return // { types: "(boolean?, bigint)" }
+    Threshold // { types: "(boolean?, bigint)" }
+    Union // { types: "(boolean?, bigint)" }
+      Get l4 // { types: "(boolean?, bigint)" }
+      Constant // { types: "(boolean?, bigint)" }
+        - (null, 10)
   With
     cte l4 =
       Negate // { types: "(boolean?, bigint)" }
@@ -172,12 +178,6 @@ Explained Query:
       ArrangeBy keys=[[#0]] // { types: "(double precision, boolean?)" }
       Filter (#0) IS NOT NULL // { types: "(double precision, boolean?)" }
       Get materialize.public.v // { types: "(double precision?, boolean?)" }
-  Return // { types: "(boolean?, bigint)" }
-    Threshold // { types: "(boolean?, bigint)" }
-    Union // { types: "(boolean?, bigint)" }
-      Get l4 // { types: "(boolean?, bigint)" }
-      Constant // { types: "(boolean?, bigint)" }
-        - (null, 10)
 
 Source materialize.public.v
   filter=((#0) IS NOT NULL)
