@@ -26,20 +26,20 @@ EXPLAIN OPTIMIZED PLAN WITH(keys) AS TEXT FOR SELECT sum(a) FROM t
 ----
 Explained Query:
   With
-    cte l0 =
-      Reduce aggregates=[sum(#0)] // { keys: "([])" }
-      Project (#0) // { keys: "()" }
-      Get materialize.public.t // { keys: "()" }
-    cte l1 =
-      Negate // { keys: "()" }
-      Project () // { keys: "([])" }
-      Get l0 // { keys: "([])" }
     cte l2 =
       Map (null) // { keys: "()" }
       Union // { keys: "()" }
         Get l1 // { keys: "([])" }
         Constant // { keys: "([])" }
           - ()
+    cte l1 =
+      Negate // { keys: "()" }
+      Project () // { keys: "([])" }
+      Get l0 // { keys: "([])" }
+    cte l0 =
+      Reduce aggregates=[sum(#0)] // { keys: "([])" }
+      Project (#0) // { keys: "()" }
+      Get materialize.public.t // { keys: "()" }
   Return // { keys: "()" }
     Union // { keys: "()" }
       Get l0 // { keys: "([])" }
@@ -81,14 +81,14 @@ ON t.b = u.d;
 ----
 Explained Query:
   With
+    cte l1 =
+      Filter (#0 = #1) // { keys: "([0], [1])" }
+      Get materialize.public.v // { keys: "([0, 1])" }
     cte l0 =
       ArrangeBy keys=[[#0]] // { keys: "([0])" }
       Reduce group_by=[#1] aggregates=[sum(#0)] // { keys: "([0])" }
       Filter (#1) IS NOT NULL // { keys: "()" }
       Get materialize.public.t // { keys: "()" }
-    cte l1 =
-      Filter (#0 = #1) // { keys: "([0], [1])" }
-      Get materialize.public.v // { keys: "([0, 1])" }
   Return // { keys: "([])" }
     Project (#1, #0, #2, #0) // { keys: "([])" }
     Join on=(#0 = #3) type=differential // { keys: "([])" }
@@ -119,15 +119,12 @@ EXCEPT ALL
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#0]] // { keys: "([0])" }
-      Distinct group_by=[#0] // { keys: "([0])" }
-      Project (#0) // { keys: "()" }
-      Filter (#0) IS NOT NULL // { keys: "()" }
-      Get materialize.public.u // { keys: "()" }
-    cte l1 =
-      Filter (#1) IS NOT NULL // { keys: "()" }
-      Get materialize.public.t // { keys: "()" }
+    cte l3 =
+      Negate // { keys: "()" }
+      Project (#0, #2) // { keys: "([1])" }
+      Filter (#0 = 1) // { keys: "([1], [2])" }
+      Map (integer_to_double(#1)) // { keys: "([0, 1], [0, 2])" }
+      Get materialize.public.v // { keys: "([0, 1])" }
     cte l2 =
       Project (#1, #2) // { keys: "([], [1])" }
       Map (integer_to_double(#0)) // { keys: "([], [0], [2])" }
@@ -136,12 +133,15 @@ Explained Query:
       Join on=(#0 = #2) type=differential // { keys: "([])" }
         Get l0 // { keys: "([])" }
         Get l1 // { keys: "([])" }
-    cte l3 =
-      Negate // { keys: "()" }
-      Project (#0, #2) // { keys: "([1])" }
-      Filter (#0 = 1) // { keys: "([1], [2])" }
-      Map (integer_to_double(#1)) // { keys: "([0, 1], [0, 2])" }
-      Get materialize.public.v // { keys: "([0, 1])" }
+    cte l1 =
+      Filter (#1) IS NOT NULL // { keys: "()" }
+      Get materialize.public.t // { keys: "()" }
+    cte l0 =
+      ArrangeBy keys=[[#0]] // { keys: "([0])" }
+      Distinct group_by=[#0] // { keys: "([0])" }
+      Project (#0) // { keys: "()" }
+      Filter (#0) IS NOT NULL // { keys: "()" }
+      Get materialize.public.u // { keys: "()" }
   Return // { keys: "()" }
     Threshold // { keys: "()" }
     Union // { keys: "()" }
@@ -166,11 +166,21 @@ SELECT 1 = (Select * FROM generate_series(1, 100000) limit 3)
 ----
 Explained Query:
   With
-    cte l0 =
-      TopK limit=3 monotonic=true // { keys: "()" }
-      FlatMap generate_series(1, 100000, 1) // { keys: "()" }
-      Constant // { keys: "([])" }
-        - ()
+    cte l4 =
+      Map (null) // { keys: "()" }
+      Union // { keys: "()" }
+        Get l3 // { keys: "([])" }
+        Constant // { keys: "([])" }
+          - ()
+    cte l3 =
+      Negate // { keys: "()" }
+      Distinct // { keys: "([])" }
+      Project () // { keys: "()" }
+      Get l2 // { keys: "()" }
+    cte l2 =
+      Union // { keys: "()" }
+        Get l0 // { keys: "()" }
+        Get l1 // { keys: "([])" }
     cte l1 =
       Map (error("more than one record produced in subquery")) // { keys: "([])" }
       Project () // { keys: "([])" }
@@ -178,21 +188,11 @@ Explained Query:
       Reduce aggregates=[count(true)] // { keys: "([])" }
       Project () // { keys: "()" }
       Get l0 // { keys: "()" }
-    cte l2 =
-      Union // { keys: "()" }
-        Get l0 // { keys: "()" }
-        Get l1 // { keys: "([])" }
-    cte l3 =
-      Negate // { keys: "()" }
-      Distinct // { keys: "([])" }
-      Project () // { keys: "()" }
-      Get l2 // { keys: "()" }
-    cte l4 =
-      Map (null) // { keys: "()" }
-      Union // { keys: "()" }
-        Get l3 // { keys: "([])" }
-        Constant // { keys: "([])" }
-          - ()
+    cte l0 =
+      TopK limit=3 monotonic=true // { keys: "()" }
+      FlatMap generate_series(1, 100000, 1) // { keys: "()" }
+      Constant // { keys: "([])" }
+        - ()
   Return // { keys: "()" }
     Project (#1) // { keys: "()" }
     Map ((#0 = 1)) // { keys: "()" }

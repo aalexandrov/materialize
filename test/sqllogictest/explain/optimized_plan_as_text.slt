@@ -121,15 +121,15 @@ SELECT a FROM t EXCEPT SELECT b FROM mv
 ----
 Explained Query:
   With
-    cte l0 =
-      Distinct group_by=[#0]
-      Project (#0)
-      Get materialize.public.t
     cte l1 =
       Negate
       Distinct group_by=[#0]
       Project (#1)
       Get materialize.public.mv
+    cte l0 =
+      Distinct group_by=[#0]
+      Project (#0)
+      Get materialize.public.t
   Return
     Threshold
     Union
@@ -152,13 +152,13 @@ SELECT a FROM t EXCEPT ALL SELECT b FROM mv
 ----
 Explained Query:
   With
-    cte l0 =
-      Project (#0)
-      Get materialize.public.t
     cte l1 =
       Negate
       Project (#1)
       Get materialize.public.mv
+    cte l0 =
+      Project (#0)
+      Get materialize.public.t
   Return
     Threshold
     Union
@@ -209,20 +209,20 @@ SELECT abs(min(a) - max(a)) FROM t
 ----
 Explained Query:
   With
-    cte l0 =
-      Reduce aggregates=[min(#0), max(#0)]
-      Project (#0)
-      Get materialize.public.t
-    cte l1 =
-      Negate
-      Project ()
-      Get l0
     cte l2 =
       Map (null, null)
       Union
         Get l1
         Constant
           - ()
+    cte l1 =
+      Negate
+      Project ()
+      Get l0
+    cte l0 =
+      Reduce aggregates=[min(#0), max(#0)]
+      Project (#0)
+      Get materialize.public.t
   Return
     Project (#2)
     Map (abs((#0 - #1)))
@@ -258,38 +258,6 @@ SELECT * FROM t WHERE EXISTS(SELECT * FROM mv WHERE t.a < mv.a) AND EXISTS(SELEC
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[]]
-      Distinct group_by=[#0]
-      Project (#0)
-      Get materialize.public.t
-    cte l2 =
-      Project (#0)
-      Get materialize.public.mv
-    cte l3 =
-      ArrangeBy keys=[[#0]]
-      Distinct group_by=[#0]
-      Project (#0)
-      Filter (#0 < #1)
-      CrossJoin type=differential
-        Get l1
-        Get l2
-    cte l4 =
-      Project (#0, #1)
-      Join on=(#0 = #2) type=delta
-        Get l0
-        Get l3
-    cte l5 =
-      ArrangeBy keys=[[]]
-      Distinct group_by=[#0]
-      Project (#1)
-      Get l4
-    cte l6 =
-      Project (#1)
-      Get materialize.public.mv
     cte l7 =
       ArrangeBy keys=[[#0]]
       Distinct group_by=[#0]
@@ -298,6 +266,38 @@ Explained Query:
       CrossJoin type=differential
         Get l5
         Get l6
+    cte l6 =
+      Project (#1)
+      Get materialize.public.mv
+    cte l5 =
+      ArrangeBy keys=[[]]
+      Distinct group_by=[#0]
+      Project (#1)
+      Get l4
+    cte l4 =
+      Project (#0, #1)
+      Join on=(#0 = #2) type=delta
+        Get l0
+        Get l3
+    cte l3 =
+      ArrangeBy keys=[[#0]]
+      Distinct group_by=[#0]
+      Project (#0)
+      Filter (#0 < #1)
+      CrossJoin type=differential
+        Get l1
+        Get l2
+    cte l2 =
+      Project (#0)
+      Get materialize.public.mv
+    cte l1 =
+      ArrangeBy keys=[[]]
+      Distinct group_by=[#0]
+      Project (#0)
+      Get materialize.public.t
+    cte l0 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.t
   Return
     Project (#0, #1)
     Join on=(#1 = #2) type=differential
@@ -316,61 +316,61 @@ SELECT (SELECT iv.a FROM iv WHERE iv.b = t.b LIMIT 1), (SELECT mv.a FROM mv WHER
 ----
 Explained Query:
   With
-    cte l0 =
-      Project (#1)
-      Get materialize.public.t
-    cte l1 =
-      Distinct group_by=[#0]
-      Get l0
-    cte l2 =
+    cte l12 =
       ArrangeBy keys=[[#0]]
-      Get l1
-    cte l3 =
-      Filter (#1) IS NOT NULL
-      Get materialize.public.iv
-    cte l4 =
-      TopK group_by=[#0] limit=1 monotonic=false
-      Project (#0, #1)
-      Join on=(#0 = #2) type=differential
-        Get l2
-        Get l3
-    cte l5 =
-      Filter (#1) IS NOT NULL
-      Get materialize.public.mv
+      Union
+        Get l6
+        Get l11
+    cte l11 =
+      Map (null)
+      Union
+        Get l10
+        Get l1
+    cte l10 =
+      Negate
+      Project (#0)
+      Get l6
+    cte l9 =
+      ArrangeBy keys=[[#0]]
+      Union
+        Get l4
+        Get l8
+    cte l8 =
+      Map (null)
+      Union
+        Get l7
+        Get l1
+    cte l7 =
+      Negate
+      Project (#0)
+      Get l4
     cte l6 =
       TopK group_by=[#0] limit=1 monotonic=false
       Project (#0, #1)
       Join on=(#0 = #2) type=differential
         Get l2
         Get l5
-    cte l7 =
-      Negate
-      Project (#0)
-      Get l4
-    cte l8 =
-      Map (null)
-      Union
-        Get l7
-        Get l1
-    cte l9 =
+    cte l5 =
+      Filter (#1) IS NOT NULL
+      Get materialize.public.mv
+    cte l4 =
+      TopK group_by=[#0] limit=1 monotonic=false
+      Project (#0, #1)
+      Join on=(#0 = #2) type=differential
+        Get l2
+        Get l3
+    cte l3 =
+      Filter (#1) IS NOT NULL
+      Get materialize.public.iv
+    cte l2 =
       ArrangeBy keys=[[#0]]
-      Union
-        Get l4
-        Get l8
-    cte l10 =
-      Negate
-      Project (#0)
-      Get l6
-    cte l11 =
-      Map (null)
-      Union
-        Get l10
-        Get l1
-    cte l12 =
-      ArrangeBy keys=[[#0]]
-      Union
-        Get l6
-        Get l11
+      Get l1
+    cte l1 =
+      Distinct group_by=[#0]
+      Get l0
+    cte l0 =
+      Project (#1)
+      Get materialize.public.t
   Return
     Project (#2, #4)
     Join on=(eq(#0, #1, #3)) type=differential
@@ -397,46 +397,46 @@ RIGHT JOIN t as t3 ON t2.b = t3.b
 ----
 Explained Query:
   With
-    cte l0 =
-      Filter (#1) IS NOT NULL
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#1]]
-      Get l0
-    cte l2 =
-      Project (#1)
-      Get l0
-    cte l3 =
-      Project (#0..=#2)
-      Join on=(eq(#1, #3, #4)) type=differential
-        Get l1
-        Get l1
-        Get l2
-    cte l4 =
-      Project (#1)
-      Get materialize.public.t
-    cte l5 =
-      ArrangeBy keys=[[#0]]
-      Distinct group_by=[#0]
-      Project (#1)
+    cte l9 =
+      Project (#0, #2)
       Get l3
+    cte l8 =
+      Map (null, null)
+      Union
+        Get l6
+        Get l7
+    cte l7 =
+      Project ()
+      Get materialize.public.t
     cte l6 =
       Negate
       Project ()
       Join on=(#0 = #1) type=differential
         Get l4
         Get l5
-    cte l7 =
-      Project ()
-      Get materialize.public.t
-    cte l8 =
-      Map (null, null)
-      Union
-        Get l6
-        Get l7
-    cte l9 =
-      Project (#0, #2)
+    cte l5 =
+      ArrangeBy keys=[[#0]]
+      Distinct group_by=[#0]
+      Project (#1)
       Get l3
+    cte l4 =
+      Project (#1)
+      Get materialize.public.t
+    cte l3 =
+      Project (#0..=#2)
+      Join on=(eq(#1, #3, #4)) type=differential
+        Get l1
+        Get l1
+        Get l2
+    cte l2 =
+      Project (#1)
+      Get l0
+    cte l1 =
+      ArrangeBy keys=[[#1]]
+      Get l0
+    cte l0 =
+      Filter (#1) IS NOT NULL
+      Get materialize.public.t
   Return
     Union
       Get l8
@@ -454,13 +454,13 @@ WITH x AS (SELECT t.a * t.b as v from t) SELECT a.v + b.v FROM x as a, x as b
 ----
 Explained Query:
   With
+    cte l1 =
+      ArrangeBy keys=[[]]
+      Get l0
     cte l0 =
       Project (#2)
       Map ((#0 * #1))
       Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[]]
-      Get l0
   Return
     Project (#2)
     Map ((#0 + #1))
@@ -498,39 +498,39 @@ FROM
 ----
 Explained Query:
   With
-    cte l0 =
-      Project (#0)
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.t
-    cte l2 =
-      ArrangeBy keys=[[]]
-      Distinct group_by=[#0]
-      Get l0
-    cte l3 =
-      ArrangeBy keys=[[#0]]
-      Reduce group_by=[#0] aggregates=[max((#0 * #1))]
-      CrossJoin type=differential
-        Get l2
-        Get l0
-    cte l4 =
-      Project (#0, #1, #3)
-      Filter (#0 != #3)
-      Join on=(#0 = #2) type=delta
-        Get l1
-        Get l3
-    cte l5 =
-      ArrangeBy keys=[[]]
-      Distinct group_by=[#0]
-      Project (#0)
-      Get l4
     cte l6 =
       ArrangeBy keys=[[#0]]
       Reduce group_by=[#0] aggregates=[max((#0 * #1))]
       CrossJoin type=differential
         Get l5
         Get l0
+    cte l5 =
+      ArrangeBy keys=[[]]
+      Distinct group_by=[#0]
+      Project (#0)
+      Get l4
+    cte l4 =
+      Project (#0, #1, #3)
+      Filter (#0 != #3)
+      Join on=(#0 = #2) type=delta
+        Get l1
+        Get l3
+    cte l3 =
+      ArrangeBy keys=[[#0]]
+      Reduce group_by=[#0] aggregates=[max((#0 * #1))]
+      CrossJoin type=differential
+        Get l2
+        Get l0
+    cte l2 =
+      ArrangeBy keys=[[]]
+      Distinct group_by=[#0]
+      Get l0
+    cte l1 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.t
+    cte l0 =
+      Project (#0)
+      Get materialize.public.t
   Return
     Project (#0..=#2, #4)
     Filter ((#0 != #4) OR ((#4) IS NOT NULL AND (#0) IS NULL))
@@ -550,12 +550,12 @@ SELECT t1.a, t2.a FROM t as t1, t as t2
 ----
 Explained Query:
   With
-    cte l0 =
-      Project (#0)
-      Get materialize.public.t
     cte l1 =
       ArrangeBy keys=[[]]
       Get l0
+    cte l0 =
+      Project (#0)
+      Get materialize.public.t
   Return
     CrossJoin type=differential
       Get l1
@@ -578,15 +578,15 @@ WHERE t1.b = t2.b AND t2.b = t3.b
 ----
 Explained Query:
   With
-    cte l0 =
-      Filter (#1) IS NOT NULL
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#1]]
-      Get l0
     cte l2 =
       Project (#1)
       Get l0
+    cte l1 =
+      ArrangeBy keys=[[#1]]
+      Get l0
+    cte l0 =
+      Filter (#1) IS NOT NULL
+      Get materialize.public.t
   Return
     Project (#0, #2)
     Join on=(eq(#1, #3, #4)) type=differential
@@ -619,16 +619,16 @@ WHERE a = c and d = e and b = f
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.u
     cte l2 =
       ArrangeBy keys=[[#0, #1]]
       Filter (#0) IS NOT NULL AND (#1) IS NOT NULL
       Get materialize.public.v
+    cte l1 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.u
+    cte l0 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.t
   Return
     Project (#0, #1, #0, #3, #3, #1)
     Filter (#0) IS NOT NULL
@@ -653,16 +653,16 @@ WHERE a = c and d = e and b = f
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#0]]
-      Get materialize.public.u
     cte l2 =
       ArrangeBy keys=[[#0, #1]]
       Filter (#0) IS NOT NULL AND (#1) IS NOT NULL
       Get materialize.public.v
+    cte l1 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.u
+    cte l0 =
+      ArrangeBy keys=[[#0]]
+      Get materialize.public.t
   Return
     Project (#0, #1, #0, #3, #3, #1)
     Filter (#0) IS NOT NULL
@@ -694,15 +694,15 @@ WHERE b = c and d = e
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#1]]
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#0], [#1]]
-      Get materialize.public.u
     cte l2 =
       ArrangeBy keys=[[#0]]
       Get materialize.public.v
+    cte l1 =
+      ArrangeBy keys=[[#0], [#1]]
+      Get materialize.public.u
+    cte l0 =
+      ArrangeBy keys=[[#1]]
+      Get materialize.public.t
   Return
     Project (#0, #1, #1, #3, #3, #5)
     Filter (#1) IS NOT NULL AND (#3) IS NOT NULL
@@ -728,15 +728,15 @@ WHERE b = c and d = e
 ----
 Explained Query:
   With
-    cte l0 =
-      ArrangeBy keys=[[#1]]
-      Get materialize.public.t
-    cte l1 =
-      ArrangeBy keys=[[#0], [#1]]
-      Get materialize.public.u
     cte l2 =
       ArrangeBy keys=[[#0]]
       Get materialize.public.v
+    cte l1 =
+      ArrangeBy keys=[[#0], [#1]]
+      Get materialize.public.u
+    cte l0 =
+      ArrangeBy keys=[[#1]]
+      Get materialize.public.t
   Return
     Project (#0, #1, #1, #3, #3, #5)
     Filter (#1) IS NOT NULL AND (#3) IS NOT NULL

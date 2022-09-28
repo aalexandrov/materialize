@@ -35,14 +35,14 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT 1 / 0
 ----
 With
-  cte l0 =
-    Constant
-      - ()
   cte l1 =
     CrossJoin
       Get l0
       Constant
         - ()
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0)
   Map ((1 / 0))
@@ -56,67 +56,67 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 (SELECT 1, 2) UNION ALL (SELECT 1, 2) UNION ALL (SELECT 3, 4)
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Constant
-        - ()
-  cte l2 =
-    Project (#0, #1)
-    Map (2)
-    Map (1)
-    Get l1
-  cte l3 =
-    Project (#2, #3)
-    Project (#0..=#3)
-    Map (#1)
-    Map (#0)
-    Get l2
-  cte l4 =
-    CrossJoin
-      Get l0
-      Constant
-        - ()
-  cte l5 =
-    Project (#0, #1)
-    Map (2)
-    Map (1)
-    Get l4
-  cte l6 =
-    Project (#2, #3)
-    Project (#0..=#3)
-    Map (#1)
-    Map (#0)
-    Get l5
-  cte l7 =
-    Union
-      Get l3
-      Get l6
-  cte l8 =
-    Project (#2, #3)
-    Project (#0..=#3)
-    Map (#1)
-    Map (#0)
-    Get l7
-  cte l9 =
-    CrossJoin
-      Get l0
-      Constant
-        - ()
-  cte l10 =
-    Project (#0, #1)
-    Map (4)
-    Map (3)
-    Get l9
   cte l11 =
     Project (#2, #3)
     Project (#0..=#3)
     Map (#1)
     Map (#0)
     Get l10
+  cte l10 =
+    Project (#0, #1)
+    Map (4)
+    Map (3)
+    Get l9
+  cte l9 =
+    CrossJoin
+      Get l0
+      Constant
+        - ()
+  cte l8 =
+    Project (#2, #3)
+    Project (#0..=#3)
+    Map (#1)
+    Map (#0)
+    Get l7
+  cte l7 =
+    Union
+      Get l3
+      Get l6
+  cte l6 =
+    Project (#2, #3)
+    Project (#0..=#3)
+    Map (#1)
+    Map (#0)
+    Get l5
+  cte l5 =
+    Project (#0, #1)
+    Map (2)
+    Map (1)
+    Get l4
+  cte l4 =
+    CrossJoin
+      Get l0
+      Constant
+        - ()
+  cte l3 =
+    Project (#2, #3)
+    Project (#0..=#3)
+    Map (#1)
+    Map (#0)
+    Get l2
+  cte l2 =
+    Project (#0, #1)
+    Map (2)
+    Map (1)
+    Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Constant
+        - ()
+  cte l0 =
+    Constant
+      - ()
 Return
   Union
     Get l8
@@ -130,14 +130,14 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT 1, a + b as c FROM mv WHERE a > 0 and b < 0 and a + b > 0
 ----
 With
-  cte l0 =
-    Constant
-      - ()
   cte l1 =
     Filter (((#0 > 0) AND (#1 < 0)) AND ((#0 + #1) > 0))
     CrossJoin
       Get l0
       Get materialize.public.mv
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#2, #3)
   Project (#0..=#3)
@@ -153,13 +153,13 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT generate_series(a, b) from t
 ----
 With
-  cte l0 =
-    Constant
-      - ()
   cte l1 =
     CrossJoin
       Get l0
       Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#2)
   Filter true
@@ -174,25 +174,6 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT a FROM t EXCEPT SELECT b FROM mv
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    Project (#0)
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Distinct group_by=[#0]
-    Project (#1)
-    Project (#0, #1)
-    Map (#0)
-    Get l1
-  cte l3 =
-    Project (#1)
-    CrossJoin
-      Get l0
-      Get materialize.public.mv
   cte l4 =
     Negate
     Distinct group_by=[#0]
@@ -200,6 +181,25 @@ With
     Project (#0, #1)
     Map (#0)
     Get l3
+  cte l3 =
+    Project (#1)
+    CrossJoin
+      Get l0
+      Get materialize.public.mv
+  cte l2 =
+    Distinct group_by=[#0]
+    Project (#1)
+    Project (#0, #1)
+    Map (#0)
+    Get l1
+  cte l1 =
+    Project (#0)
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Threshold
   Union
@@ -214,30 +214,30 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT a FROM t EXCEPT ALL SELECT b FROM mv
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    Project (#0)
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Project (#1)
-    Project (#0, #1)
-    Map (#0)
-    Get l1
-  cte l3 =
-    Project (#1)
-    CrossJoin
-      Get l0
-      Get materialize.public.mv
   cte l4 =
     Negate
     Project (#1)
     Project (#0, #1)
     Map (#0)
     Get l3
+  cte l3 =
+    Project (#1)
+    CrossJoin
+      Get l0
+      Get materialize.public.mv
+  cte l2 =
+    Project (#1)
+    Project (#0, #1)
+    Map (#0)
+    Get l1
+  cte l1 =
+    Project (#0)
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Threshold
   Union
@@ -287,39 +287,39 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT abs(min(a) - max(a)) FROM t
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    Reduce aggregates=[min(#0), max(#0)]
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Negate
-    Distinct
-    Get l1
-  cte l3 =
-    Distinct
-    Get l0
-  cte l4 =
+  cte l7 =
     Union
-      Get l2
-      Get l3
-  cte l5 =
-    Project ()
-    CrossJoin
-      Get l4
-      Get l0
+      Get l1
+      Get l6
   cte l6 =
     CrossJoin
       Get l5
       Constant
         - (null, null)
-  cte l7 =
+  cte l5 =
+    Project ()
+    CrossJoin
+      Get l4
+      Get l0
+  cte l4 =
     Union
-      Get l1
-      Get l6
+      Get l2
+      Get l3
+  cte l3 =
+    Distinct
+    Get l0
+  cte l2 =
+    Negate
+    Distinct
+    Get l1
+  cte l1 =
+    Reduce aggregates=[min(#0), max(#0)]
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#2)
   Project (#0..=#2)
@@ -334,18 +334,18 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT abs(min(a) - max(a)) FROM t GROUP BY b
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
   cte l2 =
     Reduce group_by=[#2] aggregates=[min(#0), max(#0)]
     Project (#0..=#2)
     Map (#1)
     Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#3)
   Project (#0..=#3)
@@ -360,53 +360,45 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT * FROM t WHERE EXISTS(SELECT * FROM mv WHERE t.a < mv.a) AND EXISTS(SELECT * FROM mv WHERE t.b > mv.b)
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    Filter (true AND true)
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Distinct group_by=[#0]
-    Get l1
-  cte l3 =
-    Distinct group_by=[#0]
-    Filter (#0 < #1)
-    CrossJoin
-      Get l2
-      Get materialize.public.mv
-  cte l4 =
-    CrossJoin
-      Get l3
-      Constant
-        - (true)
-  cte l5 =
-    Negate
-    Distinct group_by=[#0]
-    Get l4
-  cte l6 =
-    Distinct group_by=[#0]
-    Get l2
-  cte l7 =
+  cte l20 =
     Union
-      Get l5
-      Get l6
-  cte l8 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l7
-      Get l2
-  cte l9 =
+      Get l14
+      Get l19
+  cte l19 =
     CrossJoin
-      Get l8
+      Get l18
       Constant
         - (false)
-  cte l10 =
+  cte l18 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l17
+      Get l12
+  cte l17 =
     Union
-      Get l4
-      Get l9
+      Get l15
+      Get l16
+  cte l16 =
+    Distinct group_by=[#0]
+    Get l12
+  cte l15 =
+    Negate
+    Distinct group_by=[#0]
+    Get l14
+  cte l14 =
+    CrossJoin
+      Get l13
+      Constant
+        - (true)
+  cte l13 =
+    Distinct group_by=[#0]
+    Filter (#0 > #2)
+    CrossJoin
+      Get l12
+      Get materialize.public.mv
+  cte l12 =
+    Distinct group_by=[#1]
+    Get l11
   cte l11 =
     Project (#0, #1)
     Filter #2
@@ -414,45 +406,53 @@ With
     Join on=(#0 = #2)
       Get l1
       Get l10
-  cte l12 =
-    Distinct group_by=[#1]
-    Get l11
-  cte l13 =
-    Distinct group_by=[#0]
-    Filter (#0 > #2)
-    CrossJoin
-      Get l12
-      Get materialize.public.mv
-  cte l14 =
-    CrossJoin
-      Get l13
-      Constant
-        - (true)
-  cte l15 =
-    Negate
-    Distinct group_by=[#0]
-    Get l14
-  cte l16 =
-    Distinct group_by=[#0]
-    Get l12
-  cte l17 =
+  cte l10 =
     Union
-      Get l15
-      Get l16
-  cte l18 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l17
-      Get l12
-  cte l19 =
+      Get l4
+      Get l9
+  cte l9 =
     CrossJoin
-      Get l18
+      Get l8
       Constant
         - (false)
-  cte l20 =
+  cte l8 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l7
+      Get l2
+  cte l7 =
     Union
-      Get l14
-      Get l19
+      Get l5
+      Get l6
+  cte l6 =
+    Distinct group_by=[#0]
+    Get l2
+  cte l5 =
+    Negate
+    Distinct group_by=[#0]
+    Get l4
+  cte l4 =
+    CrossJoin
+      Get l3
+      Constant
+        - (true)
+  cte l3 =
+    Distinct group_by=[#0]
+    Filter (#0 < #1)
+    CrossJoin
+      Get l2
+      Get materialize.public.mv
+  cte l2 =
+    Distinct group_by=[#0]
+    Get l1
+  cte l1 =
+    Filter (true AND true)
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #1)
   Filter #2
@@ -469,72 +469,46 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT (SELECT v.a FROM v WHERE v.b = t.b LIMIT 1), (SELECT mv.a FROM mv WHERE mv.b = t.b LIMIT 1) FROM t
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
+  cte l25 =
+    Project (#0, #1, #3)
+    Join on=(#1 = #2)
+      Get l14
+      Get l24
+  cte l24 =
+    Union
+      Get l18
+      Get l23
+  cte l23 =
     CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Distinct group_by=[#0, #1]
-    Get l1
-  cte l3 =
-    Distinct group_by=[#1]
-    Get l2
-  cte l4 =
-    Project (#0, #1)
-    TopK group_by=[#0] limit=1 monotonic=false
-    Filter (#2 = #0)
-    CrossJoin
-      Get l3
-      Get materialize.public.v
-  cte l5 =
+      Get l22
+      Constant
+        - (null)
+  cte l22 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l21
+      Get l15
+  cte l21 =
+    Union
+      Get l19
+      Get l20
+  cte l20 =
+    Distinct group_by=[#0]
+    Get l15
+  cte l19 =
+    Negate
+    Distinct group_by=[#0]
+    Get l18
+  cte l18 =
+    Union
+      Get l16
+      Get l17
+  cte l17 =
     Map (error("more than one record produced in subquery"))
     Project (#0)
     Filter (#1 > 1)
     Reduce group_by=[#0] aggregates=[count(true)]
-    Get l4
-  cte l6 =
-    Union
-      Get l4
-      Get l5
-  cte l7 =
-    Negate
-    Distinct group_by=[#0]
-    Get l6
-  cte l8 =
-    Distinct group_by=[#0]
-    Get l3
-  cte l9 =
-    Union
-      Get l7
-      Get l8
-  cte l10 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l9
-      Get l3
-  cte l11 =
-    CrossJoin
-      Get l10
-      Constant
-        - (null)
-  cte l12 =
-    Union
-      Get l6
-      Get l11
-  cte l13 =
-    Project (#0, #1, #3)
-    Join on=(#1 = #2)
-      Get l2
-      Get l12
-  cte l14 =
-    Distinct group_by=[#0, #1]
-    Get l1
-  cte l15 =
-    Distinct group_by=[#1]
-    Get l14
+    Get l16
   cte l16 =
     Project (#0, #1)
     TopK group_by=[#0] limit=1 monotonic=false
@@ -542,46 +516,72 @@ With
     CrossJoin
       Get l15
       Get materialize.public.mv
-  cte l17 =
+  cte l15 =
+    Distinct group_by=[#1]
+    Get l14
+  cte l14 =
+    Distinct group_by=[#0, #1]
+    Get l1
+  cte l13 =
+    Project (#0, #1, #3)
+    Join on=(#1 = #2)
+      Get l2
+      Get l12
+  cte l12 =
+    Union
+      Get l6
+      Get l11
+  cte l11 =
+    CrossJoin
+      Get l10
+      Constant
+        - (null)
+  cte l10 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l9
+      Get l3
+  cte l9 =
+    Union
+      Get l7
+      Get l8
+  cte l8 =
+    Distinct group_by=[#0]
+    Get l3
+  cte l7 =
+    Negate
+    Distinct group_by=[#0]
+    Get l6
+  cte l6 =
+    Union
+      Get l4
+      Get l5
+  cte l5 =
     Map (error("more than one record produced in subquery"))
     Project (#0)
     Filter (#1 > 1)
     Reduce group_by=[#0] aggregates=[count(true)]
-    Get l16
-  cte l18 =
-    Union
-      Get l16
-      Get l17
-  cte l19 =
-    Negate
-    Distinct group_by=[#0]
-    Get l18
-  cte l20 =
-    Distinct group_by=[#0]
-    Get l15
-  cte l21 =
-    Union
-      Get l19
-      Get l20
-  cte l22 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l21
-      Get l15
-  cte l23 =
+    Get l4
+  cte l4 =
+    Project (#0, #1)
+    TopK group_by=[#0] limit=1 monotonic=false
+    Filter (#2 = #0)
     CrossJoin
-      Get l22
-      Constant
-        - (null)
-  cte l24 =
-    Union
-      Get l18
-      Get l23
-  cte l25 =
-    Project (#0, #1, #3)
-    Join on=(#1 = #2)
-      Get l14
-      Get l24
+      Get l3
+      Get materialize.public.v
+  cte l3 =
+    Distinct group_by=[#1]
+    Get l2
+  cte l2 =
+    Distinct group_by=[#0, #1]
+    Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#2, #3)
   Project (#0, #1, #8, #9)
@@ -600,23 +600,23 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT t1.a, t2.a FROM t as t1, t as t2
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
   cte l3 =
     Filter true
     Project (#0..=#3)
     CrossJoin
       Get l1
       Get l2
+  cte l2 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #2)
   Get l3
@@ -629,23 +629,23 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 SELECT t1.a, t2.a FROM t as t1 INNER JOIN t as t2 ON true
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
   cte l3 =
     Filter true
     Project (#0..=#3)
     CrossJoin
       Get l1
       Get l2
+  cte l2 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #2)
   Get l3
@@ -663,35 +663,35 @@ FROM
 WHERE t1.b = t2.b AND t2.b = t3.b
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l3 =
-    Filter true
-    Project (#0..=#3)
-    CrossJoin
-      Get l1
-      Get l2
-  cte l4 =
-    Get l3
-  cte l5 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
   cte l6 =
     Filter true
     Project (#0..=#5)
     CrossJoin
       Get l4
       Get l5
+  cte l5 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l4 =
+    Get l3
+  cte l3 =
+    Filter true
+    Project (#0..=#3)
+    CrossJoin
+      Get l1
+      Get l2
+  cte l2 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #2)
   Filter ((#1 = #3) AND (#3 = #5))
@@ -708,35 +708,35 @@ INNER JOIN t as t2 ON t1.b = t2.b
 INNER JOIN t as t3 ON t2.b = t3.b
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l3 =
-    Filter (#1 = #3)
-    Project (#0..=#3)
-    CrossJoin
-      Get l1
-      Get l2
-  cte l4 =
-    Get l3
-  cte l5 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
   cte l6 =
     Filter (#3 = #5)
     Project (#0..=#5)
     CrossJoin
       Get l4
       Get l5
+  cte l5 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l4 =
+    Get l3
+  cte l3 =
+    Filter (#1 = #3)
+    Project (#0..=#3)
+    CrossJoin
+      Get l1
+      Get l2
+  cte l2 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #2)
   Get l6
@@ -752,68 +752,68 @@ LEFT JOIN t as t2 ON t1.b = t2.b
 RIGHT JOIN t as t3 ON t2.b = t3.b
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l3 =
-    Filter (#1 = #3)
-    Project (#0..=#3)
-    CrossJoin
-      Get l1
-      Get l2
-  cte l4 =
-    Distinct group_by=[#0]
-    Project (#1)
-    Get l3
-  cte l5 =
-    Negate
-    Project (#0, #1)
-    Join on=(#1 = #2)
-      Get l1
-      Get l4
-  cte l6 =
-    Map (null, null)
-    Union
-      Get l5
-      Get l1
-  cte l7 =
-    Union
-      Get l6
-      Get l3
-  cte l8 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l9 =
-    Filter (#3 = #5)
-    Project (#0..=#5)
-    CrossJoin
-      Get l7
-      Get l8
-  cte l10 =
-    Distinct group_by=[#0]
-    Project (#3)
-    Get l9
-  cte l11 =
-    Negate
-    Project (#0, #1)
-    Join on=(#1 = #2)
-      Get l8
-      Get l10
   cte l12 =
     Project (#2..=#5, #0, #1)
     Map (null, null, null, null)
     Union
       Get l11
       Get l8
+  cte l11 =
+    Negate
+    Project (#0, #1)
+    Join on=(#1 = #2)
+      Get l8
+      Get l10
+  cte l10 =
+    Distinct group_by=[#0]
+    Project (#3)
+    Get l9
+  cte l9 =
+    Filter (#3 = #5)
+    Project (#0..=#5)
+    CrossJoin
+      Get l7
+      Get l8
+  cte l8 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l7 =
+    Union
+      Get l6
+      Get l3
+  cte l6 =
+    Map (null, null)
+    Union
+      Get l5
+      Get l1
+  cte l5 =
+    Negate
+    Project (#0, #1)
+    Join on=(#1 = #2)
+      Get l1
+      Get l4
+  cte l4 =
+    Distinct group_by=[#0]
+    Project (#1)
+    Get l3
+  cte l3 =
+    Filter (#1 = #3)
+    Project (#0..=#3)
+    CrossJoin
+      Get l1
+      Get l2
+  cte l2 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#0, #2)
   Union
@@ -828,26 +828,26 @@ EXPLAIN DECORRELATED PLAN AS TEXT FOR
 WITH x AS (SELECT t.a * t.b as v from t) SELECT a.v + b.v FROM x as a, x as b
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Project (#2)
-    Project (#0..=#2)
-    Map ((#0 * #1))
-    Get l1
+  cte l4 =
+    Get l3
   cte l3 =
     Filter true
     Project (#0, #1)
     CrossJoin
       Get l2
       Get l2
-  cte l4 =
-    Get l3
+  cte l2 =
+    Project (#2)
+    Project (#0..=#2)
+    Map ((#0 * #1))
+    Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Project (#2)
   Project (#0..=#2)
@@ -880,91 +880,91 @@ FROM
   ) as r5;
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Distinct group_by=[#0]
-    Get l1
-  cte l3 =
-    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
-    CrossJoin
-      Get l2
-      Get materialize.public.t
-  cte l4 =
-    Negate
-    Distinct group_by=[#0]
-    Get l3
-  cte l5 =
-    Distinct group_by=[#0]
-    Get l2
-  cte l6 =
+  cte l20 =
+    Filter ((#1 != #0) OR ((#1) IS NOT NULL AND (#0) IS NULL))
+    Get l19
+  cte l19 =
     Union
-      Get l4
-      Get l5
-  cte l7 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l6
-      Get l2
-  cte l8 =
+      Get l13
+      Get l18
+  cte l18 =
     CrossJoin
-      Get l7
+      Get l17
       Constant
         - (null)
-  cte l9 =
+  cte l17 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l16
+      Get l12
+  cte l16 =
     Union
-      Get l3
-      Get l8
-  cte l10 =
-    Filter (#1 != #0)
-    Get l9
+      Get l14
+      Get l15
+  cte l15 =
+    Distinct group_by=[#0]
+    Get l12
+  cte l14 =
+    Negate
+    Distinct group_by=[#0]
+    Get l13
+  cte l13 =
+    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
+    CrossJoin
+      Get l12
+      Get materialize.public.t
+  cte l12 =
+    Distinct group_by=[#0]
+    Get l11
   cte l11 =
     Filter true
     Project (#0, #1, #3)
     Join on=(#0 = #2)
       Get l1
       Get l10
-  cte l12 =
-    Distinct group_by=[#0]
-    Get l11
-  cte l13 =
-    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
-    CrossJoin
-      Get l12
-      Get materialize.public.t
-  cte l14 =
-    Negate
-    Distinct group_by=[#0]
-    Get l13
-  cte l15 =
-    Distinct group_by=[#0]
-    Get l12
-  cte l16 =
+  cte l10 =
+    Filter (#1 != #0)
+    Get l9
+  cte l9 =
     Union
-      Get l14
-      Get l15
-  cte l17 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l16
-      Get l12
-  cte l18 =
+      Get l3
+      Get l8
+  cte l8 =
     CrossJoin
-      Get l17
+      Get l7
       Constant
         - (null)
-  cte l19 =
+  cte l7 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l6
+      Get l2
+  cte l6 =
     Union
-      Get l13
-      Get l18
-  cte l20 =
-    Filter ((#1 != #0) OR ((#1) IS NOT NULL AND (#0) IS NULL))
-    Get l19
+      Get l4
+      Get l5
+  cte l5 =
+    Distinct group_by=[#0]
+    Get l2
+  cte l4 =
+    Negate
+    Distinct group_by=[#0]
+    Get l3
+  cte l3 =
+    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
+    CrossJoin
+      Get l2
+      Get materialize.public.t
+  cte l2 =
+    Distinct group_by=[#0]
+    Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Filter true
   Project (#0..=#2, #4)
@@ -1002,82 +1002,6 @@ FROM
   ) as r5;
 ----
 With
-  cte l0 =
-    Constant
-      - ()
-  cte l1 =
-    CrossJoin
-      Get l0
-      Get materialize.public.t
-  cte l2 =
-    Distinct group_by=[#0]
-    Get l1
-  cte l3 =
-    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
-    CrossJoin
-      Get l2
-      Get materialize.public.t
-  cte l4 =
-    Negate
-    Distinct group_by=[#0]
-    Get l3
-  cte l5 =
-    Distinct group_by=[#0]
-    Get l2
-  cte l6 =
-    Union
-      Get l4
-      Get l5
-  cte l7 =
-    Project (#0)
-    Join on=(#0 = #1)
-      Get l6
-      Get l2
-  cte l8 =
-    CrossJoin
-      Get l7
-      Constant
-        - (null)
-  cte l9 =
-    Union
-      Get l3
-      Get l8
-  cte l10 =
-    Distinct group_by=[#1, #0]
-    Get l9
-  cte l11 =
-    Reduce group_by=[#0, #1] aggregates=[max((#1 * #2))]
-    CrossJoin
-      Get l10
-      Get materialize.public.t
-  cte l12 =
-    Negate
-    Distinct group_by=[#0, #1]
-    Get l11
-  cte l13 =
-    Distinct group_by=[#0, #1]
-    Get l10
-  cte l14 =
-    Union
-      Get l12
-      Get l13
-  cte l15 =
-    Project (#0, #1)
-    Join on=(#0 = #2 AND #1 = #3)
-      Get l14
-      Get l10
-  cte l16 =
-    CrossJoin
-      Get l15
-      Constant
-        - (null)
-  cte l17 =
-    Union
-      Get l11
-      Get l16
-  cte l18 =
-    Filter ((#1 = #0) AND (#2 > 5))
-    Get l17
   cte l19 =
     Filter (#0 != #0)
     Filter true
@@ -1085,6 +1009,82 @@ With
     Join on=(#1 = #2 AND #0 = #3)
       Get l9
       Get l18
+  cte l18 =
+    Filter ((#1 = #0) AND (#2 > 5))
+    Get l17
+  cte l17 =
+    Union
+      Get l11
+      Get l16
+  cte l16 =
+    CrossJoin
+      Get l15
+      Constant
+        - (null)
+  cte l15 =
+    Project (#0, #1)
+    Join on=(#0 = #2 AND #1 = #3)
+      Get l14
+      Get l10
+  cte l14 =
+    Union
+      Get l12
+      Get l13
+  cte l13 =
+    Distinct group_by=[#0, #1]
+    Get l10
+  cte l12 =
+    Negate
+    Distinct group_by=[#0, #1]
+    Get l11
+  cte l11 =
+    Reduce group_by=[#0, #1] aggregates=[max((#1 * #2))]
+    CrossJoin
+      Get l10
+      Get materialize.public.t
+  cte l10 =
+    Distinct group_by=[#1, #0]
+    Get l9
+  cte l9 =
+    Union
+      Get l3
+      Get l8
+  cte l8 =
+    CrossJoin
+      Get l7
+      Constant
+        - (null)
+  cte l7 =
+    Project (#0)
+    Join on=(#0 = #1)
+      Get l6
+      Get l2
+  cte l6 =
+    Union
+      Get l4
+      Get l5
+  cte l5 =
+    Distinct group_by=[#0]
+    Get l2
+  cte l4 =
+    Negate
+    Distinct group_by=[#0]
+    Get l3
+  cte l3 =
+    Reduce group_by=[#0] aggregates=[max((#0 * #1))]
+    CrossJoin
+      Get l2
+      Get materialize.public.t
+  cte l2 =
+    Distinct group_by=[#0]
+    Get l1
+  cte l1 =
+    CrossJoin
+      Get l0
+      Get materialize.public.t
+  cte l0 =
+    Constant
+      - ()
 Return
   Filter true
   Project (#0, #1, #3, #4)
