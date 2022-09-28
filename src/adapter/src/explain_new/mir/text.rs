@@ -90,6 +90,9 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                     head = body.as_ref();
                 }
 
+                write!(f, "{}Return", ctx.indent)?;
+                self.fmt_attributes(f, ctx)?;
+                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
                 writeln!(f, "{}With", ctx.indent)?;
                 ctx.indented(|ctx| {
                     for (id, value) in bindings.iter().rev() {
@@ -98,9 +101,6 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                     }
                     Ok(())
                 })?;
-                write!(f, "{}Return", ctx.indent)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
             }
             Get { id, .. } => {
                 match id {

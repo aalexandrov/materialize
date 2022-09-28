@@ -105,6 +105,8 @@ impl<'a> Displayable<'a, HirRelationExpr> {
                     head = body.as_ref();
                 }
 
+                writeln!(f, "{}Return", ctx.indent)?;
+                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
                 writeln!(f, "{}With", ctx.indent)?;
                 ctx.indented(|ctx| {
                     for (id, value) in bindings.iter().rev() {
@@ -114,8 +116,6 @@ impl<'a> Displayable<'a, HirRelationExpr> {
                     }
                     Ok(())
                 })?;
-                writeln!(f, "{}Return", ctx.indent)?;
-                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
             }
             Get { id, .. } => match id {
                 Id::Local(id) => {

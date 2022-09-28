@@ -115,6 +115,8 @@ impl<'a> DisplayText<PlanRenderingContext<'_, Plan>> for Displayable<'a, Plan> {
                     head = body.as_ref();
                 }
 
+                writeln!(f, "{}Return", ctx.indent)?;
+                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
                 writeln!(f, "{}With", ctx.indent)?;
                 ctx.indented(|ctx| {
                     for (id, value) in bindings.iter().rev() {
@@ -123,8 +125,6 @@ impl<'a> DisplayText<PlanRenderingContext<'_, Plan>> for Displayable<'a, Plan> {
                     }
                     Ok(())
                 })?;
-                writeln!(f, "{}Return", ctx.indent)?;
-                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
             }
             Mfp {
                 input,
