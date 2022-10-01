@@ -64,8 +64,6 @@ impl<'a> Displayable<'a, MirRelationExpr> {
     ) -> fmt::Result {
         use MirRelationExpr::*;
 
-        let no_linear_chains = ctx.config.no_linear_chains;
-
         match &self.0 {
             Constant { rows, typ: _ } => match rows {
                 Ok(rows) => {
@@ -90,17 +88,31 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                     head = body.as_ref();
                 }
 
-                write!(f, "{}Return", ctx.indent)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
-                writeln!(f, "{}With", ctx.indent)?;
-                ctx.indented(|ctx| {
-                    for (id, value) in bindings.iter().rev() {
-                        writeln!(f, "{}cte {} =", ctx.indent, *id)?;
-                        ctx.indented(|ctx| Displayable::from(*value).fmt_text(f, ctx))?;
-                    }
-                    Ok(())
-                })?;
+                if ctx.config.no_linear_chains {
+                    write!(f, "{}Return", ctx.indent)?;
+                    self.fmt_attributes(f, ctx)?;
+                    ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
+                    writeln!(f, "{}Where", ctx.indent)?;
+                    ctx.indented(|ctx| {
+                        for (id, value) in bindings.iter().rev() {
+                            writeln!(f, "{}cte {} =", ctx.indent, *id)?;
+                            ctx.indented(|ctx| Displayable::from(*value).fmt_text(f, ctx))?;
+                        }
+                        Ok(())
+                    })?;
+                } else {
+                    writeln!(f, "{}With", ctx.indent)?;
+                    ctx.indented(|ctx| {
+                        for (id, value) in bindings.iter() {
+                            writeln!(f, "{}cte {} =", ctx.indent, *id)?;
+                            ctx.indented(|ctx| Displayable::from(*value).fmt_text(f, ctx))?;
+                        }
+                        Ok(())
+                    })?;
+                    write!(f, "{}Return", ctx.indent)?;
+                    self.fmt_attributes(f, ctx)?;
+                    ctx.indented(|ctx| Displayable::from(head).fmt_text(f, ctx))?;
+                }
             }
             Get { id, .. } => {
                 match id {
@@ -115,36 +127,61 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 self.fmt_attributes(f, ctx)?;
             }
             Project { outputs, input } => {
-                let outputs = Indices(outputs);
-                write!(f, "{}Project ({})", ctx.indent, outputs)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        let outputs = Indices(outputs);
+                        write!(f, "{}Project ({})", ctx.indent, outputs)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             Map { scalars, input } => {
-                let scalars = separated_text(", ", scalars.iter().map(Displayable::from));
-                write!(f, "{}Map ({})", ctx.indent, scalars)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        let scalars = separated_text(", ", scalars.iter().map(Displayable::from));
+                        write!(f, "{}Map ({})", ctx.indent, scalars)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             FlatMap { input, func, exprs } => {
-                let exprs = separated_text(", ", exprs.iter().map(Displayable::from));
-                write!(f, "{}FlatMap {}({})", ctx.indent, func, exprs)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        let exprs = separated_text(", ", exprs.iter().map(Displayable::from));
+                        write!(f, "{}FlatMap {}({})", ctx.indent, func, exprs)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             Filter { predicates, input } => {
-                let predicates = separated_text(" AND ", predicates.iter().map(Displayable::from));
-                write!(f, "{}Filter {}", ctx.indent, predicates)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        let predicates =
+                            separated_text(" AND ", predicates.iter().map(Displayable::from));
+                        write!(f, "{}Filter {}", ctx.indent, predicates)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             Join {
                 inputs,
@@ -264,26 +301,34 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 monotonic: _, // TODO: monotonic should be an attribute
                 input,
             } => {
-                if aggregates.len() > 0 {
-                    write!(f, "{}Reduce", ctx.indent)?;
-                } else {
-                    write!(f, "{}Distinct", ctx.indent)?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        if aggregates.len() > 0 {
+                            write!(f, "{}Reduce", ctx.indent)?;
+                        } else {
+                            write!(f, "{}Distinct", ctx.indent)?;
+                        }
+                        if group_key.len() > 0 {
+                            let group_key =
+                                separated_text(", ", group_key.iter().map(Displayable::from));
+                            write!(f, " group_by=[{}]", group_key)?;
+                        }
+                        if aggregates.len() > 0 {
+                            let aggregates =
+                                separated_text(", ", aggregates.iter().map(Displayable::from));
+                            write!(f, " aggregates=[{}]", aggregates)?;
+                        }
+                        if let Some(expected_group_size) = expected_group_size {
+                            write!(f, " exp_group_size={}", expected_group_size)?;
+                        }
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
                 }
-                if group_key.len() > 0 {
-                    let group_key = separated_text(", ", group_key.iter().map(Displayable::from));
-                    write!(f, " group_by=[{}]", group_key)?;
-                }
-                if aggregates.len() > 0 {
-                    let aggregates = separated_text(", ", aggregates.iter().map(Displayable::from));
-                    write!(f, " aggregates=[{}]", aggregates)?;
-                }
-                if let Some(expected_group_size) = expected_group_size {
-                    write!(f, " exp_group_size={}", expected_group_size)?;
-                }
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                .render(f, ctx)?;
             }
             TopK {
                 group_key,
@@ -293,40 +338,58 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 monotonic,
                 input,
             } => {
-                write!(f, "{}TopK", ctx.indent)?;
-                if group_key.len() > 0 {
-                    let group_by = Indices(group_key);
-                    write!(f, " group_by=[{}]", group_by)?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        write!(f, "{}TopK", ctx.indent)?;
+                        if group_key.len() > 0 {
+                            let group_by = Indices(group_key);
+                            write!(f, " group_by=[{}]", group_by)?;
+                        }
+                        if order_key.len() > 0 {
+                            let order_by = separated(", ", order_key);
+                            write!(f, " order_by=[{}]", order_by)?;
+                        }
+                        if let Some(limit) = limit {
+                            write!(f, " limit={}", limit)?;
+                        }
+                        if offset > &0 {
+                            write!(f, " offset={}", offset)?
+                        }
+                        write!(f, " monotonic={}", monotonic)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
                 }
-                if order_key.len() > 0 {
-                    let order_by = separated(", ", order_key);
-                    write!(f, " order_by=[{}]", order_by)?;
-                }
-                if let Some(limit) = limit {
-                    write!(f, " limit={}", limit)?;
-                }
-                if offset > &0 {
-                    write!(f, " offset={}", offset)?
-                }
-                write!(f, " monotonic={}", monotonic)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                .render(f, ctx)?;
             }
             Negate { input } => {
-                write!(f, "{}Negate", ctx.indent)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        write!(f, "{}Negate", ctx.indent)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             Threshold { input } => {
-                write!(f, "{}Threshold", ctx.indent)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        write!(f, "{}Threshold", ctx.indent)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| {
+                        let input = Displayable::from(input.as_ref());
+                        input.fmt_text(f, ctx)
+                    },
+                }
+                .render(f, ctx)?;
             }
             Union { base, inputs } => {
                 write!(f, "{}Union", ctx.indent)?;
@@ -340,16 +403,19 @@ impl<'a> Displayable<'a, MirRelationExpr> {
                 })?;
             }
             ArrangeBy { input, keys } => {
-                let keys = separated(
-                    "], [",
-                    keys.iter()
-                        .map(|key| separated_text(", ", key.iter().map(Displayable::from))),
-                );
-                write!(f, "{}ArrangeBy keys=[[{}]]", ctx.indent, keys)?;
-                self.fmt_attributes(f, ctx)?;
-                ctx.indented_if(no_linear_chains, |ctx| {
-                    Displayable::from(input.as_ref()).fmt_text(f, ctx)
-                })?;
+                FmtNode {
+                    fmt_root: |f, ctx| {
+                        let keys = separated(
+                            "], [",
+                            keys.iter()
+                                .map(|key| separated_text(", ", key.iter().map(Displayable::from))),
+                        );
+                        write!(f, "{}ArrangeBy keys=[[{}]]", ctx.indent, keys)?;
+                        self.fmt_attributes(f, ctx)
+                    },
+                    fmt_children: |f, ctx| Displayable::from(input.as_ref()).fmt_text(f, ctx),
+                }
+                .render(f, ctx)?;
             }
         }
 
@@ -370,6 +436,56 @@ impl<'a> Displayable<'a, MirRelationExpr> {
         } else {
             writeln!(f)
         }
+    }
+}
+
+// a helper struct that drives the formatting of a single node
+struct FmtNode<F, G>
+where
+    F: FnOnce(
+        &mut fmt::Formatter<'_>,
+        &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result,
+    G: FnOnce(
+        &mut fmt::Formatter<'_>,
+        &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result,
+{
+    fmt_root: F,
+    fmt_children: G,
+}
+
+impl<F, G> FmtNode<F, G>
+where
+    F: FnOnce(
+        &mut fmt::Formatter<'_>,
+        &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result,
+    G: FnOnce(
+        &mut fmt::Formatter<'_>,
+        &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result,
+{
+    fn render(
+        self,
+        f: &mut fmt::Formatter<'_>,
+        ctx: &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result {
+        let FmtNode {
+            fmt_root,
+            fmt_children,
+        } = self;
+        if ctx.config.no_linear_chains {
+            fmt_root(f, ctx)?;
+            // cannot use indented here
+            *ctx.as_mut() += 1;
+            fmt_children(f, ctx)?;
+            *ctx.as_mut() -= 1;
+        } else {
+            fmt_children(f, ctx)?;
+            fmt_root(f, ctx)?;
+        }
+        Ok(())
     }
 }
 
