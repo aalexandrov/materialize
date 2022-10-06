@@ -205,21 +205,25 @@ impl JoinImplementation {
             // Determine if we can perform delta queries with the existing arrangements.
             // We could defer the execution if we are sure we know we want one input,
             // but we could imagine wanting the best from each and then comparing the two.
-            let delta_query_plan = delta_queries::plan(
-                relation,
-                &input_mapper,
-                &available_arrangements,
-                &unique_keys,
-            );
-            let differential_plan = differential::plan(
-                relation,
-                &input_mapper,
-                &available_arrangements,
-                &unique_keys,
-            );
+            let delta_query_plan = || {
+                delta_queries::plan(
+                    relation,
+                    &input_mapper,
+                    &available_arrangements,
+                    &unique_keys,
+                )
+            };
+            let differential_plan = |_: TransformError| {
+                differential::plan(
+                    relation,
+                    &input_mapper,
+                    &available_arrangements,
+                    &unique_keys,
+                )
+            };
 
-            *relation = delta_query_plan
-                .or(differential_plan)
+            *relation = delta_query_plan()
+                .or_else(differential_plan)
                 .expect("Failed to produce a join plan");
         }
     }
