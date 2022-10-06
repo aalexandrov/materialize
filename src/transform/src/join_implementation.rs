@@ -711,20 +711,23 @@ impl<'a> Orderer<'a> {
         let inputs = arrangements.len();
         // A map from inputs to expresions in equivalence classes in which they are referenced.
         let mut reverse_equivalences = vec![Vec::new(); inputs];
-        for (index, equivalence) in equivalences.iter().enumerate() {
-            for (index2, expr) in equivalence.iter().enumerate() {
+        for (eq_idx, equivalence) in equivalences.iter().enumerate() {
+            for (expr_idx, expr) in equivalence.iter().enumerate() {
                 for input in input_mapper.lookup_inputs(expr) {
-                    reverse_equivalences[input].push((index, index2));
+                    reverse_equivalences[input].push((eq_idx, expr_idx));
                 }
             }
         }
         // Per-arrangement information about uniqueness of the arrangement key.
         let mut unique_arrangement = vec![Vec::new(); inputs];
-        for (input, keys) in arrangements.iter().enumerate() {
-            for key in keys.iter() {
-                unique_arrangement[input].push(unique_keys[input].iter().any(|cols| {
-                    cols.iter()
-                        .all(|c| key.contains(&MirScalarExpr::Column(*c)))
+        for (input, arrangement_keys) in arrangements.iter().enumerate() {
+            for arrangement_key in arrangement_keys.iter() {
+                unique_arrangement[input].push(unique_keys[input].iter().any(|unique_key| {
+                    // The unique key columns must be referenced as separate
+                    // components of the arrangement key.
+                    unique_key
+                        .iter()
+                        .all(|c| arrangement_key.contains(&MirScalarExpr::Column(*c)))
                 }));
             }
         }
@@ -774,7 +777,7 @@ impl<'a> Orderer<'a> {
         // Populate the priority_queue with at least one candidate entry for each input.
         // If picked, these candidates will introduce a cross joins.
         for input in 0..self.inputs {
-            let is_unique = self.unique_keys[input].iter().any(|cols| cols.is_empty());
+            let is_unique = self.unique_keys[input].iter().any(|key| key.is_empty());
             if let Some(pos) = self.arrangements[input]
                 .iter()
                 .position(|key| key.is_empty())
