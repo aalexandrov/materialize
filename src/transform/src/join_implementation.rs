@@ -626,11 +626,12 @@ fn optimize_orders(
 
 /// Characteristics of a join order candidate collection.
 ///
-/// A candidate is described by a collection and a key, and may have various liabilities.
-/// Primarily, the candidate may risk substantial inflation of records, which is something
-/// that concerns us greatly. Additionally the candidate may be unarranged, and we would
-/// prefer candidates that do not require additional memory. Finally, we prefer lower id
-/// collections in the interest of consistent tie-breaking.
+/// A candidate is an `(input index, join key)` pair associated with various
+/// liabilities modeled as a [`Characteristics`] instance. Primarily, the
+/// candidate may risk substantial inflation of records, which is something that
+/// concerns us greatly. Additionally the candidate may be unarranged, and we
+/// would prefer candidates that do not require additional memory. Finally, we
+/// prefer lower id collections in the interest of consistent tie-breaking.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
 pub struct Characteristics {
     // An excellent indication that record count will not increase.
@@ -664,15 +665,29 @@ impl Characteristics {
 }
 
 struct Orderer<'a> {
+    /// The total number of inputs to be ordered.
     inputs: usize,
+    /// Equivalences constraining the inputs cross product as an n-ary equijoin.
     equivalences: &'a [Vec<MirScalarExpr>],
+    /// Keys denoting the available arrangements for each input.
     arrangements: &'a [Vec<Vec<MirScalarExpr>>],
+    /// Unique keys available for each input.
     unique_keys: &'a [Vec<Vec<usize>>],
+    /// Filter characteristics collected for each input.
     filters: &'a [FilterCharacteristics],
+    // Input mapper to translate expressions between inputs vector and output schema.
     input_mapper: &'a JoinInputMapper,
+    /// A map from inputs to the equivalence classes in which they are referenced.
     reverse_equivalences: Vec<Vec<(usize, usize)>>,
+    /// Per-arrangement information about uniqueness of the arrangement key.
     unique_arrangement: Vec<Vec<bool>>,
+    /**
+    State maintained between successive `optimize_order_for` calls.
 
+    Each `optimize_order_for` call will first reset this state, but we opt to
+    keep these structures around as part of the enclosing Orderer instance in order
+    to avoid re-allocating them per `optimize_order_for` call.
+    */
     order: Vec<(Characteristics, Vec<MirScalarExpr>, usize)>,
     placed: Vec<bool>,
     bound: Vec<Vec<MirScalarExpr>>,
@@ -690,7 +705,7 @@ impl<'a> Orderer<'a> {
         input_mapper: &'a JoinInputMapper,
     ) -> Self {
         let inputs = arrangements.len();
-        // A map from inputs to the equivalence classes in which they are referenced.
+        // A map from inputs to expresions in equivalence classes in which they are referenced.
         let mut reverse_equivalences = vec![Vec::new(); inputs];
         for (index, equivalence) in equivalences.iter().enumerate() {
             for (index2, expr) in equivalence.iter().enumerate() {
@@ -710,6 +725,7 @@ impl<'a> Orderer<'a> {
             }
         }
 
+        // Initialize mutable order optimization state.
         let order = Vec::with_capacity(inputs);
         let placed = vec![false; inputs];
         let bound = vec![Vec::new(); inputs];
@@ -734,6 +750,8 @@ impl<'a> Orderer<'a> {
         }
     }
 
+    /// Find a linear join order for the inputs and configuration represented by this
+    /// [`Orderer`] instance, starting from the input at the given `start` position.
     fn optimize_order_for(
         &mut self,
         start: usize,
@@ -749,7 +767,8 @@ impl<'a> Orderer<'a> {
             self.equivalences_active[index] = false;
         }
 
-        // Introduce cross joins as a possibility.
+        // Populate the priority_queue with at least one candidate entry for each input.
+        // If picked, these candidates will introduce a cross joins.
         for input in 0..self.inputs {
             let is_unique = self.unique_keys[input].iter().any(|cols| cols.is_empty());
             if let Some(pos) = self.arrangements[input]
@@ -759,13 +778,13 @@ impl<'a> Orderer<'a> {
                 self.arrangement_active[input].push(pos);
                 self.priority_queue.push((
                     Characteristics::new(is_unique, 0, true, self.filters[input].clone(), input),
-                    vec![],
+                    vec![], // join candidate with an empty key (will result in a cross-join if picked)
                     input,
                 ));
             } else {
                 self.priority_queue.push((
                     Characteristics::new(is_unique, 0, false, self.filters[input].clone(), input),
-                    vec![],
+                    vec![], // join candidate with an empty key (will result in a cross-join if picked)
                     input,
                 ));
             }
