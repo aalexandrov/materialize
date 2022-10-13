@@ -35,8 +35,8 @@ use mz_compute_client::plan::{
     reduce::{AccumulablePlan, BasicPlan, CollationPlan, HierarchicalPlan},
     AvailableCollections, Plan,
 };
-use mz_expr::{explain::Indices, Id, MapFilterProject, MirScalarExpr};
-use mz_ore::str::{bracketed, separated, IndentLike, StrExt};
+use mz_expr::{Id, MapFilterProject, MirScalarExpr};
+use mz_ore::str::{bracketed, separated, IndentLike, Indices, StrExt};
 use mz_repr::explain_new::{fmt_text_constant_rows, separated_text, DisplayText};
 
 use crate::explain_new::{Displayable, PlanRenderingContext};

@@ -24,14 +24,12 @@ use mz_ore::cast::CastFrom;
 use mz_ore::collections::CollectionExt;
 use mz_ore::id_gen::IdGen;
 use mz_ore::stack::RecursionLimitError;
-use mz_ore::str::{separated, Indent};
+use mz_ore::str::{separated, Indent, Indices};
 use mz_proto::{IntoRustIfSome, ProtoType, RustType, TryFromProtoError};
 use mz_repr::adt::numeric::NumericMaxScale;
-use mz_repr::explain_new::DisplayText;
-use mz_repr::explain_new::{DummyHumanizer, ExprHumanizer};
+use mz_repr::explain_new::{DisplayText, ExprHumanizer};
 use mz_repr::{ColumnName, ColumnType, Datum, Diff, GlobalId, RelationType, Row, ScalarType};
 
-use crate::explain::{Indices, ViewExplanation};
 use crate::visit::{Visit, VisitChildren};
 use crate::{func as scalar_func, EvalError, Id, LocalId, MirScalarExpr, UnaryFunc, VariadicFunc};
 
@@ -1164,13 +1162,13 @@ impl MirRelationExpr {
     ///
     /// This method allows an additional `ExprHumanizer` which can annotate
     /// identifiers with human-meaningful names for the identifiers.
-    pub fn pretty_humanized(&self, id_humanizer: &impl ExprHumanizer) -> String {
-        ViewExplanation::new(self, id_humanizer).to_string()
+    pub fn pretty_humanized(&self, _id_humanizer: &impl ExprHumanizer) -> String {
+        unimplemented!("fixme #13298");
     }
 
     /// Pretty-print this MirRelationExpr to a string.
     pub fn pretty(&self) -> String {
-        ViewExplanation::new(self, &DummyHumanizer).to_string()
+        unimplemented!("fixme #13298");
     }
 
     /// Print this MirRelationExpr to a JSON-formatted string.
@@ -1180,9 +1178,7 @@ impl MirRelationExpr {
 
     /// Pretty-print this MirRelationExpr to a string with type information.
     pub fn pretty_typed(&self) -> String {
-        let mut explanation = ViewExplanation::new(self, &DummyHumanizer);
-        explanation.explain_types();
-        explanation.to_string()
+        unimplemented!("fixme #13298");
     }
 
     /// Take ownership of `self`, leaving an empty `MirRelationExpr::Constant` with the correct type.

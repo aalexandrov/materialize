@@ -13,7 +13,6 @@ use proc_macro2::TokenTree;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use mz_expr::explain::ViewExplanation;
 use mz_expr::{EvalError, Id, LocalId, MirRelationExpr, MirScalarExpr};
 use mz_lowertest::*;
 use mz_ore::result::ResultExt;
@@ -49,17 +48,11 @@ pub fn build_rel(s: &str, catalog: &TestCatalog) -> Result<MirRelationExpr, Stri
 /// If format contains "types", then add types to the pretty-printed
 /// [MirRelationExpr].
 pub fn generate_explanation(
-    humanizer: &dyn ExprHumanizer,
-    rel: &MirRelationExpr,
-    format: Option<&Vec<String>>,
+    _humanizer: &dyn ExprHumanizer,
+    _rel: &MirRelationExpr,
+    _format: Option<&Vec<String>>,
 ) -> String {
-    let mut explanation = ViewExplanation::new(rel, humanizer);
-    if let Some(format) = format {
-        if format.contains(&"types".to_string()) {
-            explanation.explain_types();
-        }
-    }
-    explanation.to_string()
+    unimplemented!("fixme #13298");
 }
 
 /// Turns the json version of a [MirRelationExpr] into the [mz_lowertest::to_json]

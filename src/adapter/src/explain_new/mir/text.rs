@@ -22,10 +22,8 @@
 
 use std::fmt;
 
-use mz_expr::{
-    explain::Indices, AggregateExpr, Id, JoinImplementation, MirRelationExpr, MirScalarExpr,
-};
-use mz_ore::str::{bracketed, separated, IndentLike, StrExt};
+use mz_expr::{AggregateExpr, Id, JoinImplementation, MirRelationExpr, MirScalarExpr};
+use mz_ore::str::{bracketed, separated, IndentLike, Indices, StrExt};
 use mz_repr::explain_new::{fmt_text_constant_rows, separated_text, DisplayText};
 
 use crate::explain_new::{Displayable, PlanRenderingContext};
