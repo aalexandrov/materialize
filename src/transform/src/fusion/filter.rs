@@ -54,10 +54,10 @@ pub struct Filter;
 
 impl crate::Transform for Filter {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "filter_fusion")
+        fields(path.segment = "filter_fusion"),
     )]
     fn transform(
         &self,

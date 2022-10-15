@@ -28,10 +28,10 @@ pub struct ThresholdElision;
 
 impl crate::Transform for ThresholdElision {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "threshold_elision")
+        fields(path.segment = "threshold_elision"),
     )]
     fn transform(
         &self,

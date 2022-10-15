@@ -46,10 +46,10 @@ impl CheckedRecursion for UpdateLet {
 
 impl crate::Transform for UpdateLet {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "update_let")
+        fields(path.segment = "update_let"),
     )]
     fn transform(
         &self,

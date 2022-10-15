@@ -24,10 +24,10 @@ pub struct ReduceElision;
 
 impl crate::Transform for ReduceElision {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "reduce_elision")
+        fields(path.segment = "reduce_elision"),
     )]
     fn transform(
         &self,

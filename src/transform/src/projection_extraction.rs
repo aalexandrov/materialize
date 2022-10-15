@@ -20,10 +20,10 @@ pub struct ProjectionExtraction;
 
 impl crate::Transform for ProjectionExtraction {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "projection_extraction")
+        fields(path.segment = "projection_extraction"),
     )]
     fn transform(
         &self,

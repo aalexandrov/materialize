@@ -60,10 +60,10 @@ pub struct ReductionPushdown;
 
 impl crate::Transform for ReductionPushdown {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "reduction_pushdown")
+        fields(path.segment = "reduction_pushdown"),
     )]
     fn transform(
         &self,

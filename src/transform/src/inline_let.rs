@@ -55,10 +55,10 @@ impl CheckedRecursion for InlineLet {
 
 impl crate::Transform for InlineLet {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "inline_let")
+        fields(path.segment = "inline_let"),
     )]
     fn transform(
         &self,

@@ -44,10 +44,10 @@ pub struct ProjectionPushdown;
 impl crate::Transform for ProjectionPushdown {
     // This method is only used during unit testing.
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "projection_pushdown")
+        fields(path.segment = "projection_pushdown"),
     )]
     fn transform(
         &self,

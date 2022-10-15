@@ -1473,10 +1473,10 @@ This is not expected to cause incorrect results, but could indicate a performanc
 
     /// Convert the dataflow description into one that uses render plans.
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "debug",
         skip_all,
-        fields(path.segment = "mir_to_lir")
+        fields(path.segment = "mir_to_lir"),
     )]
     pub fn finalize_dataflow(
         desc: DataflowDescription<OptimizedMirRelationExpr>,

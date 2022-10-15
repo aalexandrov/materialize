@@ -18,10 +18,10 @@ pub struct Reduce;
 
 impl crate::Transform for Reduce {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "reduce_fusion")
+        fields(path.segment = "reduce_fusion"),
     )]
     fn transform(
         &self,

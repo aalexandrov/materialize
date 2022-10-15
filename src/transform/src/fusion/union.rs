@@ -25,10 +25,10 @@ pub struct Union;
 
 impl crate::Transform for Union {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "union")
+        fields(path.segment = "union_fusion"),
     )]
     fn transform(
         &self,

@@ -19,10 +19,10 @@ pub struct TopKElision;
 
 impl crate::Transform for TopKElision {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "topk_elision")
+        fields(path.segment = "topk_elision"),
     )]
     fn transform(
         &self,

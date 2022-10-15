@@ -20,10 +20,10 @@ pub struct TopK;
 
 impl crate::Transform for TopK {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "topk_fusion")
+        fields(path.segment = "topk_fusion"),
     )]
     fn transform(
         &self,

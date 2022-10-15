@@ -33,10 +33,10 @@ pub struct FoldConstants {
 
 impl crate::Transform for FoldConstants {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "fold_constants")
+        fields(path.segment = "fold_constants"),
     )]
     fn transform(
         &self,

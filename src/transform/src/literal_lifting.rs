@@ -54,10 +54,10 @@ impl CheckedRecursion for LiteralLifting {
 
 impl crate::Transform for LiteralLifting {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "literal_lifting")
+        fields(path.segment = "literal_lifting"),
     )]
     fn transform(
         &self,

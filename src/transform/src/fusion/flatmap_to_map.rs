@@ -20,10 +20,10 @@ pub struct FlatMapToMap;
 
 impl crate::Transform for FlatMapToMap {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "flatmap_to_map")
+        fields(path.segment = "flatmap_to_map"),
     )]
     fn transform(
         &self,

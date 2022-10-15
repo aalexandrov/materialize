@@ -51,10 +51,10 @@ pub struct CanonicalizeMfp;
 
 impl crate::Transform for CanonicalizeMfp {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "canonicalize_mfp")
+        fields(path.segment = "canonicalize_mfp"),
     )]
     fn transform(
         &self,

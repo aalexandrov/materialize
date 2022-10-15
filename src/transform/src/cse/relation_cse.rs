@@ -28,10 +28,10 @@ pub struct RelationCSE;
 
 impl crate::Transform for RelationCSE {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "relation_cse")
+        fields(path.segment = "relation_cse"),
     )]
     fn transform(
         &self,

@@ -50,10 +50,10 @@ impl CheckedRecursion for JoinImplementation {
 
 impl crate::Transform for JoinImplementation {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "join_implementation")
+        fields(path.segment = "join_implementation"),
     )]
     fn transform(
         &self,

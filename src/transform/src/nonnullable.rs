@@ -26,10 +26,10 @@ pub struct NonNullable;
 
 impl crate::Transform for NonNullable {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "non_nullable")
+        fields(path.segment = "non_nullable"),
     )]
     fn transform(
         &self,

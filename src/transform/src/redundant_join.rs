@@ -53,10 +53,10 @@ impl CheckedRecursion for RedundantJoin {
 
 impl crate::Transform for RedundantJoin {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "redundant_join")
+        fields(path.segment = "redundant_join"),
     )]
     fn transform(
         &self,

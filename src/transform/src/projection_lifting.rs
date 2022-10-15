@@ -40,10 +40,10 @@ impl CheckedRecursion for ProjectionLifting {
 
 impl crate::Transform for ProjectionLifting {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "projection_lifting")
+        fields(path.segment = "projection_lifting"),
     )]
     fn transform(
         &self,

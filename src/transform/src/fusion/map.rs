@@ -29,10 +29,10 @@ pub struct Map;
 
 impl crate::Transform for Map {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "map_fusion")
+        fields(path.segment = "map_fusion"),
     )]
     fn transform(
         &self,

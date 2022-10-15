@@ -147,10 +147,10 @@ pub struct Fixpoint {
 
 impl Transform for Fixpoint {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "fixpoint")
+        fields(path.segment = "fixpoint"),
     )]
     fn transform(
         &self,
@@ -274,10 +274,10 @@ impl Default for FuseAndCollapse {
 
 impl Transform for FuseAndCollapse {
     #[tracing::instrument(
-        target = "optimizer"
+        target = "optimizer",
         level = "trace",
         skip_all,
-        fields(path.segment = "fuse_and_collapse")
+        fields(path.segment = "fuse_and_collapse"),
     )]
     fn transform(
         &self,
