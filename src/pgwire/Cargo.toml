@@ -11,7 +11,7 @@ anyhow = "1.0.52"
 async-trait = "0.1.52"
 byteorder = "1.4.3"
 bytes = "1.1.0"
-chrono = { version = "0.4.0", default-features = false, features = ["std"] }
+chrono = { version = "0.4.20", default-features = false, features = ["std"] }
 coord = { path = "../coord" }
 csv = "1.1.6"
 dataflow-types = { path = "../dataflow-types" }
