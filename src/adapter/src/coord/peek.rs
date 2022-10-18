@@ -26,8 +26,8 @@ use mz_compute_client::controller::ComputeInstanceId;
 use mz_compute_client::response::PeekResponse;
 use mz_expr::explain::Indices;
 use mz_expr::{EvalError, Id, MirScalarExpr, OptimizedMirRelationExpr};
+use mz_ore::str::Indent;
 use mz_ore::str::StrExt;
-use mz_ore::str::{separated, Indent};
 use mz_ore::tracing::OpenTelemetryContext;
 use mz_repr::explain_new::{fmt_text_constant_rows, separated_text, DisplayText, ExprHumanizer};
 use mz_repr::{Diff, GlobalId, RelationType, Row};
@@ -114,25 +114,7 @@ where
                     writeln!(f, "{}Map ({})", ctx.as_mut(), scalars)?;
                     *ctx.as_mut() += 1;
                 }
-                let humanized_index = ctx
-                    .as_ref()
-                    .humanize_id(*id)
-                    .unwrap_or_else(|| id.to_string());
-                if let Some(literal_constraints) = literal_constraints {
-                    write!(
-                        f,
-                        "{}ReadExistingIndex {} lookup ",
-                        ctx.as_mut(),
-                        humanized_index
-                    )?;
-                    if literal_constraints.len() == 1 {
-                        writeln!(f, "value {}", literal_constraints.get(0).unwrap())?;
-                    } else {
-                        writeln!(f, "values [{}]", separated("; ", literal_constraints))?;
-                    }
-                } else {
-                    writeln!(f, "{}ReadExistingIndex {}", ctx.as_mut(), humanized_index)?;
-                }
+                Displayable::fmt_indexed_filter(f, ctx, id, literal_constraints.clone())?;
                 ctx.as_mut().reset();
                 Ok(())
             }
