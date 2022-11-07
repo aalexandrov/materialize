@@ -51,17 +51,8 @@ impl<'a> Displayable<'a, HirRelationExpr> {
         f: &mut fmt::Formatter<'_>,
         ctx: &mut PlanRenderingContext<'_, HirRelationExpr>,
     ) -> fmt::Result {
-        if let Some(Except { all, lhs, rhs }) = Hir::un_except(self.0) {
-            if all {
-                writeln!(f, "{}ExceptAll", ctx.indent)?;
-            } else {
-                writeln!(f, "{}Except", ctx.indent)?;
-            }
-            ctx.indented(|ctx| {
-                Displayable::from(lhs).fmt_text(f, ctx)?;
-                Displayable::from(rhs).fmt_text(f, ctx)?;
-                Ok(())
-            })?;
+        if let Some(except) = Hir::un_except(self.0) {
+            Displayable::from(&except).fmt_text(f, ctx)?;
         } else {
             // fallback to raw syntax formatting as a last resort
             self.fmt_raw_syntax(f, ctx)?;
@@ -236,6 +227,26 @@ impl<'a> Displayable<'a, HirRelationExpr> {
         }
 
         Ok(())
+    }
+}
+
+impl DisplayText<PlanRenderingContext<'_, HirRelationExpr>> for Displayable<'_, Except<'_, Hir>> {
+    fn fmt_text(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        ctx: &mut PlanRenderingContext<'_, HirRelationExpr>,
+    ) -> fmt::Result {
+        let Except { all, lhs, rhs } = self.0;
+        if *all {
+            writeln!(f, "{}ExceptAll", ctx.indent)?;
+        } else {
+            writeln!(f, "{}Except", ctx.indent)?;
+        }
+        ctx.indented(|ctx| {
+            Displayable::from(*lhs).fmt_text(f, ctx)?;
+            Displayable::from(*rhs).fmt_text(f, ctx)?;
+            Ok(())
+        })
     }
 }
 
