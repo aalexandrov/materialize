@@ -22,6 +22,8 @@
 
 use std::fmt;
 
+use mz_expr::virtual_syntax::{AlgIndexedFilter, IndexedFilter};
+use mz_expr::Mir;
 use mz_expr::{
     explain::Indices, AggregateExpr, Id, JoinImplementation, MirRelationExpr, MirScalarExpr,
 };
@@ -53,9 +55,14 @@ impl<'a> Displayable<'a, MirRelationExpr> {
         f: &mut fmt::Formatter<'_>,
         ctx: &mut PlanRenderingContext<'_, MirRelationExpr>,
     ) -> fmt::Result {
-        // no virtual syntax support for now, evolve this
-        // method as its HirRelationExpr counterpart
-        self.fmt_raw_syntax(f, ctx)
+        if let Some(indexed_filter) = Mir::un_indexed_filter(self.0) {
+            Displayable::from(&indexed_filter).fmt_text(f, ctx)?;
+        } else {
+            // fallback to raw syntax formatting as a last resort
+            self.fmt_raw_syntax(f, ctx)?;
+        }
+
+        Ok(())
     }
 
     fn fmt_raw_syntax(
@@ -459,6 +466,35 @@ impl<'a> Displayable<'a, MirRelationExpr> {
     where
         C: AsMut<mz_ore::str::Indent> + AsRef<&'b dyn mz_repr::explain_new::ExprHumanizer>,
     {
+        let humanized_index = ctx
+            .as_ref()
+            .humanize_id(*id)
+            .unwrap_or_else(|| id.to_string());
+        if let Some(constants) = constants {
+            write!(
+                f,
+                "{}ReadExistingIndex {} lookup_",
+                ctx.as_mut(),
+                humanized_index
+            )?;
+            if constants.len() == 1 {
+                writeln!(f, "value={}", constants.get(0).unwrap())?;
+            } else {
+                writeln!(f, "values=[{}]", separated("; ", constants))?;
+            }
+        } else {
+            writeln!(f, "{}ReadExistingIndex {}", ctx.as_mut(), humanized_index)?;
+        }
+        Ok(())
+    }
+}
+
+impl DisplayText<PlanRenderingContext<'_, MirRelationExpr>> for Displayable<'_, IndexedFilter<_>> {
+    fn fmt_text(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        ctx: &mut PlanRenderingContext<'_, MirRelationExpr>,
+    ) -> fmt::Result {
         let humanized_index = ctx
             .as_ref()
             .humanize_id(*id)

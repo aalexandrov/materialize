@@ -10,6 +10,8 @@
 //! A set of virtual nodes that are used to recover some high-level
 //! concepts that are desugared to non-trival terms in some IRs.
 
+use mz_repr::{GlobalId, RelationType, Row};
+
 pub trait IR: Sized {
     type Relation;
     type Scalar;
@@ -25,4 +27,23 @@ pub struct Except<'a, U: IR> {
 pub trait AlgExcept: IR {
     fn except(all: &bool, lhs: Self::Relation, rhs: Self::Relation) -> Self::Relation;
     fn un_except<'a>(expr: &'a Self::Relation) -> Option<Except<'a, Self>>;
+}
+
+#[allow(missing_debug_implementations)]
+pub struct IndexedFilter<'a> {
+    // The id of the index
+    pub id: &'a GlobalId,
+    // The type of the records in the index
+    pub typ: &'a RelationType,
+    // The values that we are looking up
+    pub constants: Option<&'a Vec<Row>>,
+}
+
+pub trait AlgIndexedFilter: IR {
+    fn indexed_filter(
+        id: &GlobalId,
+        typ: &RelationType,
+        constants: Option<&Vec<Row>>,
+    ) -> Self::Relation;
+    fn un_indexed_filter<'a>(expr: &'a Self::Relation) -> Option<IndexedFilter<'a>>;
 }

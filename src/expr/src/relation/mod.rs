@@ -32,6 +32,7 @@ use mz_repr::explain_new::{DummyHumanizer, ExprHumanizer};
 use mz_repr::{ColumnName, ColumnType, Datum, Diff, GlobalId, RelationType, Row, ScalarType};
 
 use crate::explain::{Indices, ViewExplanation};
+use crate::virtual_syntax::{AlgIndexedFilter, IR};
 use crate::visit::{Visit, VisitChildren};
 use crate::{func as scalar_func, EvalError, Id, LocalId, MirScalarExpr, UnaryFunc, VariadicFunc};
 
@@ -67,6 +68,22 @@ pub trait CollectionPlan {
         let mut out = BTreeSet::new();
         self.depends_on_into(&mut out);
         out
+    }
+}
+
+impl AlgIndexedFilter for crate::Mir {
+    fn indexed_filter(
+        id: &GlobalId,
+        typ: &RelationType,
+        constants: Option<&Vec<Row>>,
+    ) -> Self::Relation {
+        todo!() // TODO (not needed for EXPLAIN, but might be used elsewhere)
+    }
+
+    fn un_indexed_filter<'a>(
+        expr: &'a Self::Relation,
+    ) -> Option<crate::virtual_syntax::IndexedFilter<'a>> {
+        None // TODO
     }
 }
 

@@ -50,6 +50,14 @@ pub use scalar::func::{self, BinaryFunc, UnaryFunc, UnmaterializableFunc, Variad
 pub use scalar::{like_pattern, EvalError, FilterCharacteristics, MirScalarExpr};
 pub use scalar::{ProtoDomainLimit, ProtoEvalError, ProtoMirScalarExpr};
 
+#[allow(missing_debug_implementations)]
+pub struct Mir;
+
+impl IR for Mir {
+    type Relation = MirRelationExpr;
+    type Scalar = MirScalarExpr;
+}
+
 /// A [`MirRelationExpr`] that claims to have been optimized, e.g., by an
 /// `transform::Optimizer`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Hash)]
