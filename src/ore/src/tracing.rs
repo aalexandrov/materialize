@@ -545,3 +545,68 @@ impl From<HashMap<String, String>> for OpenTelemetryContext {
         Self { inner: map }
     }
 }
+
+/// Helper trait used to get attributes of type `&'static str`.
+pub trait GetField {
+    /// Extract a field of type `T` identified by the given `key`.
+    ///
+    /// # Returns
+    ///
+    /// The value of the field in `Some(val)` or `None` if the key is not
+    /// present or the `key` identifies a value of a different type.
+    fn field<T>(&self, key: &'static str) -> Option<T>
+    where
+        ExtractField<T>: tracing::field::Visit;
+}
+
+impl<'a> GetField for tracing::Event<'a> {
+    fn field<T>(&self, key: &'static str) -> Option<T>
+    where
+        ExtractField<T>: tracing::field::Visit,
+    {
+        let mut extract_str = ExtractField { key, val: None };
+        self.record(&mut extract_str);
+        extract_str.val
+    }
+}
+
+impl<'a> GetField for tracing::span::Attributes<'a> {
+    fn field<T>(&self, key: &'static str) -> Option<T>
+    where
+        ExtractField<T>: tracing::field::Visit,
+    {
+        let mut extract_str = ExtractField { key, val: None };
+        self.record(&mut extract_str);
+        extract_str.val
+    }
+}
+
+/// Helper struct that implements `field::Visit` for various attribute types and
+/// is used by the [`GetField`] implementations.
+#[derive(Debug)]
+pub struct ExtractField<T> {
+    key: &'static str,
+    val: Option<T>,
+}
+
+/* Visit implementations for various field types. Add more as needed.  */
+
+impl tracing::field::Visit for ExtractField<String> {
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == self.key {
+            self.val = Some(value.to_string())
+        }
+    }
+
+    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
+}
+
+impl tracing::field::Visit for ExtractField<u128> {
+    fn record_u128(&mut self, field: &tracing::field::Field, value: u128) {
+        if field.name() == self.key {
+            self.val = Some(value.clone())
+        }
+    }
+
+    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
+}

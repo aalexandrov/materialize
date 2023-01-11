@@ -17,7 +17,9 @@ use std::ops::DerefMut;
 use std::sync::Mutex;
 
 use tracing::{span, subscriber};
-use tracing_subscriber::{field, layer};
+use tracing_subscriber::layer;
+
+use mz_ore::tracing::GetField;
 
 /// A tracing layer used to accumulate a sequence of explainable plans.
 #[allow(missing_debug_implementations)]
@@ -123,7 +125,7 @@ where
         let mut path = self.path.lock().expect("path shouldn't be poisoned");
         let path = path.deref_mut();
         let segment = attrs
-            .get_str("path.segment")
+            .field::<String>("path.segment")
             .unwrap_or_else(|| ctx.span(id).expect("span").name().to_string());
         if !path.is_empty() {
             path.push('/');
@@ -223,46 +225,6 @@ impl<T: Clone + 'static> PlanTrace<T> {
             None => Some(path.clone()),
         }
     }
-}
-
-/// Helper trait used to extract attributes of type `&'static str`.
-trait GetStr {
-    fn get_str(&self, key: &'static str) -> Option<String>;
-}
-
-impl<'a> GetStr for span::Attributes<'a> {
-    fn get_str(&self, key: &'static str) -> Option<String> {
-        let mut extract_str = ExtractStr::new(key);
-        self.record(&mut extract_str);
-        extract_str.val()
-    }
-}
-
-/// Helper struct that implements `field::Visit` and is used in the
-/// `GetStr::get_str` implementation for `span::Attributes`.
-struct ExtractStr {
-    key: &'static str,
-    val: Option<String>,
-}
-
-impl ExtractStr {
-    fn new(key: &'static str) -> Self {
-        Self { key, val: None }
-    }
-
-    fn val(self) -> Option<String> {
-        self.val
-    }
-}
-
-impl field::Visit for ExtractStr {
-    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        if field.name() == self.key {
-            self.val = Some(value.to_string())
-        }
-    }
-
-    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
 }
 
 #[cfg(test)]
