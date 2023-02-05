@@ -11,7 +11,7 @@ anyhow = "1.0.52"
 ccsr = { path = "../ccsr" }
 chrono = { version = "0.4.0", default-features = false, features = ["std"] }
 clap = { version = "3.0.14", features = ["derive"] }
-crossbeam = "0.8.1"
+crossbeam = "0.8.2"
 futures = "0.3.21"
 mz-avro = { path = "../avro" }
 num_cpus = "1.13.1"
