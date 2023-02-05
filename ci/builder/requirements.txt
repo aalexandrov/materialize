@@ -5,7 +5,7 @@
 # list without consulting with @benesch!
 
 click==8.0.3
-colored==1.4.3
+colored==1.4.4
 humanize==3.14.0
 pg8000==1.24.0
 prettytable==3.0.0
