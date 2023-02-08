@@ -397,6 +397,10 @@ pub fn optimize_dataflow_monotonic(dataflow: &mut DataflowDesc) -> Result<(), Tr
     let monotonic_flag = MonotonicFlag::default();
 
     for build_desc in dataflow.objects_to_build.iter_mut() {
+        if build_desc.plan.as_inner().is_recursive() {
+            println!("monotonic_flag.apply start");
+            println!("{}", build_desc.plan.as_inner_mut().pretty());
+        }
         monotonic_flag.apply(
             build_desc.plan.as_inner_mut(),
             &monotonic_ids,
