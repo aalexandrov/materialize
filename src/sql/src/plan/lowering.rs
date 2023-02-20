@@ -43,6 +43,7 @@ use itertools::Itertools;
 use mz_expr::visit::Visit;
 use mz_ore::collections::CollectionExt;
 use mz_ore::stack::maybe_grow;
+use mz_repr::explain::tracing::{dbg_misc, dbg_plan, ContextHash};
 use mz_repr::RelationType;
 use mz_repr::*;
 
@@ -180,7 +181,11 @@ impl HirRelationExpr {
         col_map: &ColumnMap,
         cte_map: &mut CteMap,
     ) -> Result<mz_expr::MirRelationExpr, PlanError> {
-        maybe_grow(|| {
+        let h = ContextHash::of(&self);
+        dbg_plan(format!("applied_to[{}].outer", h), &get_outer);
+        dbg_plan(format!("applied_to[{}].inner", h), &self);
+
+        let result = maybe_grow(|| {
             use self::HirRelationExpr::*;
             use mz_expr::MirRelationExpr as SR;
             if let mz_expr::MirRelationExpr::Get { .. } = &get_outer {
@@ -391,6 +396,9 @@ impl HirRelationExpr {
                             &scalars, id_gen, col_map, cte_map, input,
                         )?;
                         input = with_subqueries;
+
+                        dbg_misc(format!("applied_to[{}].scalars", h), scalars.len());
+                        dbg_misc(format!("applied_to[{}].old_arity", h), old_arity);
 
                         // We will proceed sequentially through the scalar expressions, for each transforming
                         // the decorrelated `input` into a relation with potentially more columns capable of
@@ -728,7 +736,12 @@ impl HirRelationExpr {
                         .threshold()
                 }
             })
-        })
+        });
+
+        if let Ok(result) = result.as_ref() {
+            dbg_plan(format!("applied_to[{}].result", h), result);
+        }
+        result
     }
 }
 
@@ -1350,6 +1363,12 @@ impl HirScalarExpr {
         cte_map: &mut CteMap,
         inner: mz_expr::MirRelationExpr,
     ) -> Result<(mz_expr::MirRelationExpr, BTreeMap<HirScalarExpr, usize>), PlanError> {
+        let h = ContextHash::of(&inner);
+        dbg_plan(format!("lower_subqueries[{}].inner", h), &inner);
+        for (i, expr) in exprs.iter().enumerate() {
+            dbg_plan(format!("lower_subqueries[{}].expr[{i}]", h), expr);
+        }
+
         let mut subquery_map = BTreeMap::new();
         let output = inner.let_in_fallible(id_gen, |id_gen, get_inner| {
             let mut subqueries = Vec::new();
@@ -1436,6 +1455,8 @@ impl HirScalarExpr {
                 ))
             }
         })?;
+
+        dbg_plan(format!("lower_subqueries[{:03}].result", h), &output);
         Ok((output, subquery_map))
     }
 
@@ -1512,6 +1533,9 @@ where
         &mut CteMap,
     ) -> Result<mz_expr::MirRelationExpr, PlanError>,
 {
+    let h = ContextHash::of(&inner);
+    dbg_plan(format!("branch[{}].inner", h), &inner);
+
     // TODO: It would be nice to have a version of this code w/o optimizations,
     // at the least for purposes of understanding. It was difficult for one reader
     // to understand the required properties of `outer` and `col_map`.
@@ -1646,7 +1670,8 @@ where
         }));
     }
     let new_col_map = ColumnMap::new(new_col_map);
-    outer.let_in_fallible(id_gen, |id_gen, get_outer| {
+
+    let result = outer.let_in_fallible(id_gen, |id_gen, get_outer| {
         let keyed_outer = if key.is_empty() {
             // Don't depend on outer at all if the branch is not correlated,
             // which yields vastly better query plans. Note that this is a bit
@@ -1673,7 +1698,12 @@ where
             .project((0..oa).chain((oa + key.len())..(oa + ba)).collect());
             Ok(joined)
         })
-    })
+    });
+
+    if let Ok(result) = result.as_ref() {
+        dbg_plan(format!("branch[{}].result", h), result);
+    }
+    result
 }
 
 fn apply_scalar_subquery(
