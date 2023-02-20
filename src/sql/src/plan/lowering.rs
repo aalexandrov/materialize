@@ -40,6 +40,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
 
+use mz_expr::visit::Visit;
 use mz_ore::collections::CollectionExt;
 use mz_ore::stack::maybe_grow;
 use mz_repr::RelationType;
@@ -1360,45 +1361,44 @@ impl HirScalarExpr {
             let mut subqueries = Vec::new();
             let distinct_inner = get_inner.clone().distinct();
             for expr in exprs.iter() {
-                #[allow(deprecated)]
-                expr.visit_pre_post(
+                expr.try_visit_pre_post(
                     &mut |e| match e {
                         // For simplicity, subqueries within a conditional statement will be
                         // lowered when lowering the conditional expression.
-                        HirScalarExpr::If { .. } => Some(vec![]),
-                        _ => None,
+                        HirScalarExpr::If { .. } => Ok(Some(vec![])),
+                        _ => Ok(None),
                     },
-                    &mut |e| match e {
-                        HirScalarExpr::Select(expr) => {
-                            let apply_requires_distinct_outer = false;
-                            let subquery = apply_scalar_subquery(
-                                id_gen,
-                                distinct_inner.clone(),
-                                col_map,
-                                cte_map,
-                                (**expr).clone(),
-                                apply_requires_distinct_outer,
-                            )
-                            .unwrap();
-
-                            subqueries.push((e.clone(), subquery));
-                        }
-                        HirScalarExpr::Exists(expr) => {
-                            let apply_requires_distinct_outer = false;
-                            let subquery = apply_existential_subquery(
-                                id_gen,
-                                distinct_inner.clone(),
-                                col_map,
-                                cte_map,
-                                (**expr).clone(),
-                                apply_requires_distinct_outer,
-                            )
-                            .unwrap();
-                            subqueries.push((e.clone(), subquery));
-                        }
-                        _ => {}
+                    &mut |e| {
+                        match e {
+                            HirScalarExpr::Select(expr) => {
+                                let apply_requires_distinct_outer = false;
+                                let subquery = apply_scalar_subquery(
+                                    id_gen,
+                                    distinct_inner.clone(),
+                                    col_map,
+                                    cte_map,
+                                    (**expr).clone(),
+                                    apply_requires_distinct_outer,
+                                )?;
+                                subqueries.push((e.clone(), subquery));
+                            }
+                            HirScalarExpr::Exists(expr) => {
+                                let apply_requires_distinct_outer = false;
+                                let subquery = apply_existential_subquery(
+                                    id_gen,
+                                    distinct_inner.clone(),
+                                    col_map,
+                                    cte_map,
+                                    (**expr).clone(),
+                                    apply_requires_distinct_outer,
+                                )?;
+                                subqueries.push((e.clone(), subquery));
+                            }
+                            _ => {}
+                        };
+                        Ok::<_, PlanError>(())
                     },
-                );
+                )?;
             }
 
             if subqueries.is_empty() {
@@ -1566,15 +1566,14 @@ where
     // detecting the moment of decorrelation in the optimizer right now is too
     // hard.
     let mut is_simple = true;
-    #[allow(deprecated)]
-    inner.visit(0, &mut |expr, _| match expr {
+    inner.visit_post(&mut |expr| match expr {
         HirRelationExpr::Constant { .. }
         | HirRelationExpr::Project { .. }
         | HirRelationExpr::Map { .. }
         | HirRelationExpr::Filter { .. }
         | HirRelationExpr::CallTable { .. } => (),
         _ => is_simple = false,
-    });
+    })?;
     if is_simple && !apply_requires_distinct_outer {
         let new_col_map = col_map.enter_scope(outer.arity() - col_map.len());
         return outer.let_in_fallible(id_gen, |id_gen, get_outer| {
@@ -1603,8 +1602,7 @@ where
     });
     // Collect all the outer columns referenced by any CTE referenced by
     // the inner relation.
-    #[allow(deprecated)]
-    inner.visit(0, &mut |e, _| match e {
+    inner.visit_post(&mut |e| match e {
         HirRelationExpr::Get {
             id: mz_expr::Id::Local(id),
             ..
@@ -1639,7 +1637,7 @@ where
             assert!(!cte_map.contains_key(id));
         }
         _ => {}
-    });
+    })?;
     let mut new_col_map = BTreeMap::new();
     let mut key = vec![];
     for col in outer_cols {
