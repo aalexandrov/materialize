@@ -243,6 +243,20 @@ pub trait Visit {
         F1: FnMut(&mut Self) -> Option<Vec<&mut Self>>,
         F2: FnMut(&mut Self);
 
+    /// A generalization of [`Visit::try_visit_pre`] and
+    /// [`Visit::try_visit_post`].
+    ///
+    /// The function `pre` runs on `self` before it runs on any of the children.
+    /// The function `post` runs on children first before the parent.
+    ///
+    /// Optionally, `pre` can return which children, if any, should be visited
+    /// (default is to visit all children).
+    fn try_visit_pre_post<F1, F2, E>(&self, pre: &mut F1, post: &mut F2) -> Result<(), E>
+    where
+        F1: FnMut(&Self) -> Result<Option<Vec<&Self>>, E>,
+        F2: FnMut(&Self) -> Result<(), E>,
+        E: From<RecursionLimitError>;
+
     /// A generalization of [`Visit::visit_mut_pre`] and [`Visit::visit_mut_post`].
     /// Does not enforce a recursion limit.
     ///
@@ -417,6 +431,15 @@ impl<T: VisitChildren<T>> Visit for T {
         F2: FnMut(&Self),
     {
         StackSafeVisit::new().visit_pre_post_nolimit(self, pre, post)
+    }
+
+    fn try_visit_pre_post<F1, F2, E>(&self, pre: &mut F1, post: &mut F2) -> Result<(), E>
+    where
+        F1: FnMut(&Self) -> Result<Option<Vec<&Self>>, E>,
+        F2: FnMut(&Self) -> Result<(), E>,
+        E: From<RecursionLimitError>,
+    {
+        StackSafeVisit::new().try_visit_pre_post(self, pre, post)
     }
 
     fn visit_mut_pre_post<F1, F2>(
@@ -677,6 +700,24 @@ impl<T: VisitChildren<T>> StackSafeVisit<T> {
                 value.visit_children(|child| self.visit_pre_post_nolimit(child, pre, post));
             }
             post(value);
+        })
+    }
+
+    fn try_visit_pre_post<F1, F2, E>(&self, value: &T, pre: &mut F1, post: &mut F2) -> Result<(), E>
+    where
+        F1: FnMut(&T) -> Result<Option<Vec<&T>>, E>,
+        F2: FnMut(&T) -> Result<(), E>,
+        E: From<RecursionLimitError>,
+    {
+        self.checked_recur(move |_| {
+            if let Some(to_visit) = pre(value)? {
+                for child in to_visit {
+                    self.try_visit_pre_post(child, pre, post)?;
+                }
+            } else {
+                value.try_visit_children(|child| self.try_visit_pre_post(child, pre, post))?;
+            }
+            post(value)
         })
     }
 
