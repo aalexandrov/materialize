@@ -362,11 +362,6 @@ impl HirRelationExpr {
                 }
                 Map { input, mut scalars } => {
                     // Scalar expressions may contain correlated subqueries. We must be cautious!
-
-                    // We lower scalars in chunks, and must keep track of the
-                    // arity of the HIR fragments lowered so far.
-                    let mut lowered_arity = input.arity();
-
                     let mut input = input.applied_to(id_gen, get_outer, col_map, cte_map)?;
 
                     // Lower subqueries in maximally sized batches, such as no subquery in the current
@@ -375,6 +370,8 @@ impl HirRelationExpr {
                     // Map operator, so we need to ensure these columns exist before lowering the
                     // subquery.
                     while !scalars.is_empty() {
+                        let old_arity = input.arity();
+
                         let end_idx = scalars
                             .iter_mut()
                             .position(|s| {
@@ -382,17 +379,14 @@ impl HirRelationExpr {
                                 #[allow(deprecated)]
                                 s.visit_columns(0, &mut |depth, col| {
                                     if col.level == depth {
-                                        requires_nonexistent_column |= col.column >= lowered_arity
+                                        requires_nonexistent_column |= (col.column + 1) > old_arity
                                     }
                                 });
                                 requires_nonexistent_column
                             })
                             .unwrap_or(scalars.len());
 
-                        lowered_arity = lowered_arity + end_idx;
                         let scalars = scalars.drain(0..end_idx).collect_vec();
-
-                        let old_arity = input.arity();
                         let (with_subqueries, subquery_map) = HirScalarExpr::lower_subqueries(
                             &scalars, id_gen, col_map, cte_map, input,
                         )?;
