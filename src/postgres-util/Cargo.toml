@@ -8,7 +8,7 @@ rust-version = "1.58.0"
 
 [dependencies]
 anyhow = "1.0.52"
-openssl = { version = "0.10.38", features = ["vendored"] }
+openssl = { version = "0.10.47", features = ["vendored"] }
 postgres-openssl = { git = "https://github.com/MaterializeInc/rust-postgres", branch = "mz-0.7.2" }
 sql-parser = { path = "../sql-parser" }
 repr = { path = "../repr" }
