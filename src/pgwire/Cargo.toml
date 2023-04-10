@@ -20,7 +20,7 @@ futures = "0.3.21"
 itertools = "0.10.3"
 lazy_static = "1.4.0"
 tracing = "0.1.29"
-openssl = { version = "0.10.38", features = ["vendored"] }
+openssl = { version = "0.10.50", features = ["vendored"] }
 ordered-float = { version = "2.10.0", features = ["serde"] }
 ore = { path = "../ore" }
 pgcopy = { path = "../pgcopy" }
