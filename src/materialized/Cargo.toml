@@ -40,7 +40,7 @@ clap = { version = "3.0.14", features = ["wrap_help", "env", "derive"] }
 compile-time-run = "0.2.12"
 console-subscriber = { version = "0.1.1", optional = true }
 coord = { path = "../coord" }
-crossbeam-channel = "0.5.2"
+crossbeam-channel = "0.5.8"
 dataflow = { path = "../dataflow" }
 dataflowd = { path = "../dataflowd" }
 dataflow-types = { path = "../dataflow-types" }
