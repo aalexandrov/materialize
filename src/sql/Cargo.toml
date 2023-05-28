@@ -18,7 +18,7 @@ dec = "0.4.8"
 enum-kinds = "0.5.1"
 expr = { path = "../expr" }
 futures = "0.3.21"
-globset = "0.4.8"
+globset = "0.4.10"
 interchange = { path = "../interchange" }
 itertools = "0.10.3"
 lazy_static = "1.4.0"
