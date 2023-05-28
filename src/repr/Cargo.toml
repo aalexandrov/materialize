@@ -47,4 +47,4 @@ prost-build = "0.9.1"
 [dev-dependencies]
 criterion = { git = "https://github.com/MaterializeInc/criterion.rs.git" }
 proptest = { version = "1.0.0", default-features = false, features = ["std"] }
-rand = "0.8.4"
+rand = "0.8.5"
