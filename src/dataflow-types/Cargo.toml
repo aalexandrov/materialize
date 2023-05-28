@@ -28,7 +28,7 @@ kafka-util = { path = "../kafka-util" }
 http = "0.2.6"
 http-serde = "1.1.0"
 tracing = "0.1.29"
-num_enum = "0.5.6"
+num_enum = "0.6.1"
 mz-aws-util = { path = "../aws-util" }
 ore = { path = "../ore" }
 persist = { path = "../persist" }
