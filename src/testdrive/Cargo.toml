@@ -26,7 +26,7 @@ coord = { path = "../coord" }
 flate2 = "1.0.22"
 futures = "0.3.21"
 globset = "0.4.8"
-http = "0.2.6"
+http = "0.2.9"
 interchange = { path = "../interchange" }
 itertools = "0.10.3"
 kafka-util = { path = "../kafka-util" }
