@@ -9,7 +9,7 @@ colored==1.4.3
 humanize==3.14.0
 pg8000==1.24.0
 prettytable==3.0.0
-PyMySQL==1.0.2
+PyMySQL==1.1.0
 pyyaml==6.0
 requests==2.27.1
 semver==3.0.0.dev3
