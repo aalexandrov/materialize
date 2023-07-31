@@ -64,9 +64,16 @@ impl crate::Transform for RedundantJoin {
         relation: &mut MirRelationExpr,
         _: TransformArgs,
     ) -> Result<(), crate::TransformError> {
+        println!("============================");
+        println!("{}", relation.pretty());
+        println!("----------------------------");
         let mut ctx = ProvInfoCtx::default();
         ctx.extend_uses(relation);
+        for (id, uses) in ctx.uses.iter() {
+            println!("uses[{id}] = {uses}");
+        }
         let result = self.action(relation, &mut ctx);
+        println!("============================");
         mz_repr::explain::trace_plan(&*relation);
         result.map(|_| ())
     }
@@ -97,9 +104,11 @@ impl RedundantJoin {
                     // Recursively determine provenance of the value.
                     let value_prov = self.action(value, ctx)?;
                     // Clear uses from the just visited binding definition.
+                    println!("remove_uses({id})");
                     ctx.remove_uses(value);
 
                     // Extend the lets context with an entry for this binding.
+                    println!("lets[{id}]: add non-recursive (|-| = {})", value_prov.len());
                     let prov_old = ctx.insert(*id, value_prov);
                     assert!(prov_old.is_none(), "No shadowing");
 
@@ -108,7 +117,8 @@ impl RedundantJoin {
                     ctx.remove_uses(body);
 
                     // Remove the lets entry for this binding from the context.
-                    ctx.remove(id);
+                    let is_some = ctx.remove(id).is_some();
+                    println!("lets[{id}]: remove non-recursive (exists: {is_some})");
 
                     Ok(result)
                 }
@@ -122,6 +132,7 @@ impl RedundantJoin {
                     // As a first approximation, we naively extend the `lets`
                     // context with the empty vec![] for each id.
                     for id in ids.iter() {
+                        println!("lets[{id}]: add recursive (|-| = 0)");
                         let prov_old = ctx.insert(*id, vec![]);
                         assert!(prov_old.is_none(), "No shadowing");
                     }
@@ -136,7 +147,8 @@ impl RedundantJoin {
                     }
                     // Clear uses from the just visited recursive binding
                     // definitions.
-                    for value in values.iter_mut() {
+                    for (id, value) in std::iter::zip(ids.iter(), values.iter_mut()) {
+                        println!("remove_uses({id})");
                         ctx.remove_uses(value);
                     }
                     let result = self.action(body, ctx)?;
@@ -144,7 +156,8 @@ impl RedundantJoin {
 
                     // Remove the lets entries for all ids.
                     for id in ids.iter() {
-                        ctx.remove(id);
+                        let is_some = ctx.remove(id).is_some();
+                        println!("lets[{id}]: remove recursive (exists: {is_some})");
                     }
 
                     Ok(result)
@@ -207,6 +220,7 @@ impl RedundantJoin {
                         .next()
                     {
                         // Clear uses from the removed input.
+                        println!("remove_uses(<join_input>)");
                         ctx.remove_uses(&inputs[remove_input_idx]);
 
                         inputs.remove(remove_input_idx);
