@@ -2747,17 +2747,6 @@ impl Coordinator {
             explainee,
         } = plan;
 
-        let cluster_id = {
-            let catalog = self.catalog();
-            let cluster = match explainee {
-                Explainee::Dataflow(_) => catalog.active_cluster(ctx.session())?,
-                Explainee::Query => {
-                    catalog.resolve_target_cluster(target_cluster, ctx.session())?
-                }
-            };
-            cluster.id
-        };
-
         assert_ne!(stage, ExplainStage::Timestamp);
 
         let optimizer_trace = match stage {
@@ -2770,7 +2759,7 @@ impl Coordinator {
                 explainee,
                 raw_plan,
                 no_errors,
-                cluster_id,
+                target_cluster,
                 ctx.session_mut(),
             )
             .with_subscriber(&optimizer_trace)
@@ -2847,7 +2836,7 @@ impl Coordinator {
         explainee: Explainee,
         raw_plan: mz_sql::plan::HirRelationExpr,
         no_errors: bool,
-        cluster_id: mz_storage_client::types::instances::StorageInstanceId,
+        target_cluster: TargetCluster,
         session: &mut Session,
     ) -> Result<(UsedIndexes, Option<FastPathPlan>), AdapterError> {
         use mz_repr::explain::trace_plan;
@@ -2873,9 +2862,16 @@ impl Coordinator {
             }
         }
 
-        let (explainee_id, is_oneshot) = match explainee {
-            Explainee::Dataflow(id) => (id, false),
-            Explainee::Query => (GlobalId::Explain, true),
+        let catalog = self.catalog();
+        let (explainee_id, is_oneshot, cluster_id) = match explainee {
+            Explainee::Dataflow(id) => {
+                let cluster_id = catalog.active_cluster(session)?.id;
+                (id, false, cluster_id)
+            }
+            Explainee::Query => {
+                let cluster_id = catalog.resolve_target_cluster(target_cluster, session)?.id;
+                (GlobalId::Explain, true, cluster_id)
+            }
         };
 
         // Execute the various stages of the optimization pipeline
