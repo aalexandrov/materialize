@@ -28,6 +28,7 @@ use mz_audit_log::{
 use mz_build_info::DUMMY_BUILD_INFO;
 use mz_compute_client::controller::ComputeReplicaConfig;
 use mz_compute_client::logging::LogVariant;
+use mz_compute_client::types::dataflows::DataflowDesc;
 use mz_controller::clusters::{
     ClusterEvent, ClusterId, ClusterRole, ClusterStatus, ManagedReplicaAvailabilityZones,
     ManagedReplicaLocation, ProcessId, ReplicaAllocation, ReplicaConfig, ReplicaId,
@@ -2318,6 +2319,7 @@ pub struct MaterializedView {
     pub desc: RelationDesc,
     pub resolved_ids: ResolvedIds,
     pub cluster_id: ClusterId,
+    pub optimized_plan: Option<DataflowDesc>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -7543,6 +7545,7 @@ impl Catalog {
                     desc,
                     resolved_ids,
                     cluster_id: materialized_view.cluster_id,
+                    optimized_plan: None,
                 })
             }
             Plan::CreateIndex(CreateIndexPlan { index, .. }) => CatalogItem::Index(Index {
@@ -9225,6 +9228,7 @@ mod tests {
                                 .with_key(vec![0]),
                             resolved_ids: ResolvedIds(BTreeSet::from_iter(resolved_ids)),
                             cluster_id: ClusterId::User(1),
+                            optimized_plan: None,
                         })
                     }
                     SimplifiedItem::Index { on } => {

@@ -997,6 +997,7 @@ impl Coordinator {
                 desc: desc.clone(),
                 resolved_ids,
                 cluster_id,
+                optimized_plan: None,
             }),
             owner_id: *session.current_role_id(),
         });

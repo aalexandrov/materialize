@@ -533,7 +533,7 @@ impl fmt::Display for Attributes {
 }
 
 /// A set of indexes that are used in the explained plan.
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct UsedIndexes(Vec<(GlobalId, Vec<IndexUsageType>)>);
 
 impl UsedIndexes {
