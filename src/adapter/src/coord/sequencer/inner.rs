@@ -969,9 +969,18 @@ impl Coordinator {
         // Allocate a unique ID that can be used by the dataflow builder to
         // connect the view dataflow to the storage sink.
         let internal_view_id = self.allocate_transient_id()?;
-
         let optimized_expr = self.view_optimizer.optimize(view_expr)?;
         let desc = RelationDesc::new(optimized_expr.typ(), column_names);
+        let debug_name = self.catalog().resolve_full_name(&name, None).to_string();
+
+        let mut builder = self.dataflow_builder(cluster_id);
+        let optimized_plan = builder.build_materialized_view(
+            id,
+            internal_view_id,
+            debug_name,
+            &optimized_expr,
+            &desc,
+        )?;
 
         // Pick the least valid read timestamp as the as-of for the view
         // dataflow. This makes the materialized view include the maximum possible
@@ -997,7 +1006,7 @@ impl Coordinator {
                 desc: desc.clone(),
                 resolved_ids,
                 cluster_id,
-                optimized_plan: None,
+                optimized_plan: Some(optimized_plan),
             }),
             owner_id: *session.current_role_id(),
         });
@@ -1006,10 +1015,10 @@ impl Coordinator {
             .catalog_transact_with(Some(session), ops, |txn| {
                 // Create a dataflow that materializes the view query and sinks
                 // it to storage.
-                let df = txn
-                    .dataflow_builder(cluster_id)
-                    .build_materialized_view_dataflow(id, internal_view_id)?;
-                Ok(df)
+                let CatalogItem::MaterializedView(mv) = txn.catalog.get_entry(&id).item() else {
+                    unreachable!()
+                };
+                Ok(mv.optimized_plan.as_ref().expect("optimized_plan").clone())
             })
             .await
         {

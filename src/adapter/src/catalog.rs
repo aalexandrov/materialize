@@ -7287,6 +7287,16 @@ impl Catalog {
         Ok(())
     }
 
+    #[deprecated = "Set the optimized_plan when constructing the CatalogItem"]
+    pub fn update_optimized_plan(&mut self, id: GlobalId, optimized_plan: DataflowDesc) {
+        match &mut self.state.get_entry_mut(&id).item {
+            CatalogItem::MaterializedView(mview) => {
+                mview.optimized_plan = Some(optimized_plan);
+            }
+            _ => panic!("Unexpected CatalogEntry without an optimzied_plan field"),
+        }
+    }
+
     fn create_schema(
         state: &mut CatalogState,
         builtin_table_updates: &mut Vec<BuiltinTableUpdate>,
