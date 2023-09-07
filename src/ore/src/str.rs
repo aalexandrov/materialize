@@ -134,25 +134,21 @@ where
 
 /// Creates a type whose [`fmt::Display`] implementation outputs each item in
 /// `iter` separated by `separator`.
-pub fn separated<'s, 'i, I>(separator: &'s str, iter: I) -> impl fmt::Display + 'i
+pub fn separated<'a, I>(separator: &'a str, iter: I) -> impl fmt::Display + 'a
 where
-    's: 'i,
     I: IntoIterator,
-    I::IntoIter: Clone + 'i,
-    I::Item: fmt::Display + 'i,
+    I::IntoIter: Clone + 'a,
+    I::Item: fmt::Display + 'a,
 {
-    struct Separated<'s, I>
-    where
-        I: 's,
-    {
-        separator: &'s str,
+    struct Separated<'a, I> {
+        separator: &'a str,
         iter: I,
     }
 
-    impl<'s, 'i, I> fmt::Display for Separated<'s, I>
+    impl<'a, I> fmt::Display for Separated<'a, I>
     where
-        I: Iterator + Clone + 'i,
-        I::Item: fmt::Display + 'i,
+        I: Iterator + Clone,
+        I::Item: fmt::Display,
     {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             for (i, item) in self.iter.clone().enumerate() {
