@@ -15,9 +15,10 @@ use std::fmt::{Debug, Display};
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
-use tracing::{span, subscriber, Dispatch, Level};
+use tracing::{span, subscriber, Level};
+use tracing_core::dispatcher::{Dispatch, WeakDispatch};
 use tracing_core::{Event, Interest, Metadata};
-use tracing_subscriber::{field, layer, Registry};
+use tracing_subscriber::{field, layer};
 
 /// A tracing layer used to accumulate a sequence of explainable plans.
 #[allow(missing_debug_implementations)]
@@ -342,54 +343,54 @@ impl field::Visit for ExtractStr {
 #[allow(missing_debug_implementations)]
 
 pub struct DelegateSubscriber {
-    inner: Dispatch,
+    inner: WeakDispatch,
 }
 
 impl Default for DelegateSubscriber {
     fn default() -> Self {
-        let default = tracing::dispatcher::get_default(Clone::clone);
+        tracing::dispatcher::get_default(|dispatch| Self {
+            inner: dispatch.downgrade(),
+        })
+    }
+}
 
-        let inner = if default.downcast_ref::<Registry>().is_none() {
-            Registry::default().into() // we need at least a simple registry
-        } else {
-            default
-        };
-
-        Self { inner }
+impl DelegateSubscriber {
+    fn inner(&self) -> Dispatch {
+        self.inner.upgrade().expect("existing Dispatch")
     }
 }
 
 impl subscriber::Subscriber for DelegateSubscriber {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        metadata.target() == "optimizer" || self.inner.enabled(metadata)
+        metadata.target() == "optimizer" || self.inner().enabled(metadata)
     }
 
     fn new_span(&self, span: &span::Attributes<'_>) -> span::Id {
-        self.inner.new_span(span)
+        self.inner().new_span(span)
     }
 
     fn record(&self, span: &span::Id, values: &span::Record<'_>) {
-        self.inner.record(span, values)
+        self.inner().record(span, values)
     }
 
     fn record_follows_from(&self, span: &span::Id, follows: &span::Id) {
-        self.inner.record_follows_from(span, follows)
+        self.inner().record_follows_from(span, follows)
     }
 
     fn event(&self, event: &Event<'_>) {
-        self.inner.event(event)
+        self.inner().event(event)
     }
 
     fn enter(&self, span: &span::Id) {
-        self.inner.enter(span)
+        self.inner().enter(span)
     }
 
     fn exit(&self, span: &span::Id) {
-        self.inner.exit(span)
+        self.inner().exit(span)
     }
 
     fn current_span(&self) -> tracing_core::span::Current {
-        self.inner.current_span()
+        self.inner().current_span()
     }
 }
 
