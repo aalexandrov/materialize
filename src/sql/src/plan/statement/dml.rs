@@ -368,6 +368,9 @@ pub fn plan_explain_plan(
                 broken,
             })
         }
+        Explainee::CreateIndex(_stmt, _broken) => {
+            bail_unsupported!("unsupported explainee type")
+        }
     };
 
     Ok(Plan::ExplainPlan(ExplainPlanPlan {

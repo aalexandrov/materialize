@@ -6989,6 +6989,14 @@ impl<'a> Parser<'a> {
                     _ => panic!("Unexpected statement type return after parsing"),
                 };
                 Explainee::CreateMaterializedView(Box::new(stmt), broken)
+            } else if self.peek_keywords(&[CREATE, INDEX]) {
+                // Parse: `BROKEN? CREATE INDEX ...`
+                let _ = self.parse_keyword(CREATE); // consume CREATE token
+                let stmt = match self.parse_create_index()? {
+                    Statement::CreateIndex(stmt) => stmt,
+                    _ => panic!("Unexpected statement type return after parsing"),
+                };
+                Explainee::CreateIndex(Box::new(stmt), broken)
             } else {
                 // Parse: `BROKEN? query`
                 let query = self.parse_query()?;
