@@ -1715,6 +1715,11 @@ feature_flags!(
         "jemalloc heap memory profiling",
         false
     ),
+    (
+        enable_unified_optimizer_api,
+        "use the new unified optimzier API in bootstrap() and coordinator methods",
+        true
+    )
 );
 
 /// Represents the input to a variable.
