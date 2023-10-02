@@ -17,24 +17,25 @@
 
 use std::collections::BTreeMap;
 
-use differential_dataflow::lattice::Lattice;
+use mz_compute_types::dataflows::DataflowDescription;
+use mz_compute_types::plan::Plan;
+use mz_compute_types::ComputeInstanceId;
 use mz_controller_types::ClusterId;
 use mz_expr::CollectionPlan;
 use mz_repr::explain::{TransientItem, UsedIndexes};
-use mz_repr::{ColumnName, GlobalId, RelationDesc, Timestamp};
+use mz_repr::{ColumnName, GlobalId};
 use mz_sql::catalog::CatalogError;
 use mz_sql::names::{ObjectId, QualifiedItemName, ResolvedIds};
-use mz_sql::plan::{self, MaterializedView, OptimizerConfig};
+use mz_sql::plan::{self, MaterializedView};
 use mz_storage_client::controller::{CollectionDescription, DataSource, DataSourceOther};
 use mz_transform::dataflow::DataflowMetainfo;
-use timely::progress::Antichain;
 use tracing::Level;
 
 use crate::catalog::CatalogItem;
-use crate::coord::dataflows::DataflowBuilder;
 use crate::coord::peek::FastPathPlan;
 use crate::coord::sequencer::inner::catch_unwind;
 use crate::coord::{Coordinator, DEFAULT_LOGICAL_COMPACTION_WINDOW_TS};
+use crate::optimize::{Optimize, OptimizeMaterializedView, OptimizerFlags};
 use crate::session::Session;
 use crate::util::ResultExt;
 use crate::{catalog, AdapterError, AdapterNotice, ExecuteResponse, TimestampProvider};
@@ -88,24 +89,34 @@ impl Coordinator {
             });
         }
 
-        // Allocate IDs for the materialized view in the catalog.
+        // Collect optimize paramters
+        let compute_instance = self
+            .instance_snapshot(cluster_id)
+            .expect("compute instance does not exist");
         let id = self.catalog_mut().allocate_user_id().await?;
-        let oid = self.catalog_mut().allocate_oid()?;
-        // Allocate a unique ID that can be used by the dataflow builder to
-        // connect the view dataflow to the storage sink.
         let internal_view_id = self.allocate_transient_id()?;
-        let decorrelated_expr = raw_expr.optimize_and_lower(&plan::OptimizerConfig {})?;
-        let optimized_expr = self.view_optimizer.optimize(decorrelated_expr)?;
-        let desc = RelationDesc::new(optimized_expr.typ(), column_names);
         let debug_name = self.catalog().resolve_full_name(&name, None).to_string();
+        let optimzier_flags = OptimizerFlags::from(self.catalog().system_config());
 
-        // Pick the least valid read timestamp as the as-of for the view
-        // dataflow. This makes the materialized view include the maximum possible
-        // amount of historical detail.
-        let id_bundle = self
-            .index_oracle(cluster_id)
-            .sufficient_collections(&expr_depends_on);
-        let as_of = self.least_valid_read(&id_bundle);
+        // Build a MATERIALIZED VIEW optimizer for this view.
+        let mut optimizer = OptimizeMaterializedView::new(
+            self.owned_catalog(),
+            compute_instance,
+            id,
+            internal_view_id,
+            column_names.clone(),
+            debug_name,
+            optimzier_flags,
+        );
+
+        // MIR ⇒ MIR optimization (local and global)
+        let local_mir_plan = optimizer.optimize(raw_expr)?;
+        let global_mir_plan = optimizer.optimize(local_mir_plan.clone())?;
+        // Timestamp selection
+        let since = self.least_valid_read(&global_mir_plan.id_bundle());
+        let timestamped_plan = global_mir_plan.clone().resolve(since.clone());
+        // MIR ⇒ LIR lowering and LIR ⇒ LIR optimization (global)
+        let global_lir_plan = optimizer.optimize(timestamped_plan)?;
 
         let mut ops = Vec::new();
         ops.extend(
@@ -115,12 +126,12 @@ impl Coordinator {
         );
         ops.push(catalog::Op::CreateItem {
             id,
-            oid,
+            oid: self.catalog_mut().allocate_oid()?,
             name: name.clone(),
             item: CatalogItem::MaterializedView(catalog::MaterializedView {
                 create_sql,
-                optimized_expr,
-                desc: desc.clone(),
+                optimized_expr: local_mir_plan.expr(),
+                desc: global_lir_plan.desc(),
                 resolved_ids,
                 cluster_id,
             }),
@@ -128,28 +139,21 @@ impl Coordinator {
         });
 
         match self
-            .catalog_transact_with(Some(session.conn_id()), ops, |txn| {
-                // Create a dataflow that materializes the view query and sinks
-                // it to storage.
-                let CatalogItem::MaterializedView(mv) = txn.catalog.get_entry(&id).item() else {
-                    unreachable!()
-                };
-
-                let mut builder = txn.dataflow_builder(cluster_id);
-                let (df, df_metainfo) = builder.build_materialized_view(
-                    id,
-                    internal_view_id,
-                    debug_name,
-                    &mv.optimized_expr,
-                    &mv.desc,
-                )?;
-
-                Ok((df, df_metainfo))
-            })
+            .catalog_transact_conn(Some(session.conn_id()), ops)
             .await
         {
-            Ok((mut df, df_metainfo)) => {
-                self.emit_optimizer_notices(session, &df_metainfo.optimizer_notices);
+            Ok(_) => {
+                // Save plan structures.
+                self.catalog_mut()
+                    .set_optimized_plan(id, global_mir_plan.df_desc().clone());
+                self.catalog_mut()
+                    .set_physical_plan(id, global_lir_plan.df_desc().clone());
+                self.catalog_mut()
+                    .set_dataflow_metainfo(id, global_lir_plan.df_meta().clone());
+
+                // Emit notices.
+                self.emit_optimizer_notices(session, &global_lir_plan.df_meta().optimizer_notices);
+
                 // Announce the creation of the materialized view source.
                 self.controller
                     .storage
@@ -158,9 +162,9 @@ impl Coordinator {
                         vec![(
                             id,
                             CollectionDescription {
-                                desc,
+                                desc: global_lir_plan.desc(),
                                 data_source: DataSource::Other(DataSourceOther::Compute),
-                                since: Some(as_of.clone()),
+                                since: Some(since),
                                 status_collection_id: None,
                             },
                         )],
@@ -174,12 +178,9 @@ impl Coordinator {
                 )
                 .await;
 
-                self.catalog_mut().set_optimized_plan(id, df.clone());
-                self.catalog_mut().set_dataflow_metainfo(id, df_metainfo);
+                let df = global_lir_plan.unapply().0;
 
-                df.set_as_of(as_of);
-                let df = self.must_ship_dataflow(df, cluster_id).await;
-                self.catalog_mut().set_physical_plan(id, df);
+                self.ship_dataflow1(df, cluster_id).await;
 
                 Ok(ExecuteResponse::CreatedMaterializedView)
             }
@@ -235,18 +236,25 @@ impl Coordinator {
         // Initialize optimizer context
         // ----------------------------
 
+        // Collect optimize paramters
         let compute_instance = self
             .instance_snapshot(target_cluster_id)
             .expect("compute instance does not exist");
         let exported_sink_id = self.allocate_transient_id()?;
         let internal_view_id = self.allocate_transient_id()?;
         let debug_name = full_name.to_string();
-        let as_of = {
-            let id_bundle = self
-                .index_oracle(target_cluster_id)
-                .sufficient_collections(&raw_plan.depends_on());
-            self.least_valid_read(&id_bundle)
-        };
+        let optimzier_flags = OptimizerFlags::from(self.catalog().system_config());
+
+        // Build a MATERIALIZED VIEW optimizer for this view.
+        let mut optimizer = OptimizeMaterializedView::new(
+            self.owned_catalog(),
+            compute_instance,
+            exported_sink_id,
+            internal_view_id,
+            column_names.clone(),
+            debug_name,
+            optimzier_flags,
+        );
 
         // Create a transient catalog item
         // -------------------------------
@@ -269,73 +277,64 @@ impl Coordinator {
         });
 
         // Execute the `optimize/hir_to_mir` stage.
-        let decorrelated_plan = catch_unwind(broken, "hir_to_mir", || {
-            raw_plan.optimize_and_lower(&OptimizerConfig {})
-        })?;
+        let (df_desc, df_meta, used_indexes) = catch_unwind(broken, "optimize", || {
+            // MIR ⇒ MIR optimization (local and global)
+            let local_mir_plan = optimizer.optimize(raw_plan)?;
+            let global_mir_plan = optimizer.optimize(local_mir_plan.clone())?;
 
-        // Execute the `optimize/local` stage.
-        let optimized_plan = catch_unwind(broken, "local", || {
-            let _span = tracing::span!(target: "optimizer", Level::TRACE, "local").entered();
-            let optimized_plan = self.view_optimizer.optimize(decorrelated_plan)?;
-            trace_plan(optimized_plan.as_inner());
-            Ok::<_, AdapterError>(optimized_plan)
-        })?;
+            // Collect the list of indexes used by the dataflow at this point
+            let used_indexes = {
+                let df_desc = global_mir_plan.df_desc();
+                let df_meta = global_mir_plan.df_meta();
+                UsedIndexes::new(
+                    df_desc
+                        .index_imports
+                        .iter()
+                        .map(|(id, _index_import)| {
+                            (*id, df_meta.index_usage_types.get(id).expect("prune_and_annotate_dataflow_index_imports should have been called already").clone())
+                        })
+                        .collect(),
+                )
+            };
 
-        // Execute the `optimize/global` stage.
-        let (mut df, df_metainfo) = catch_unwind(broken, "global", || {
-            let mut dataflow_builder =
-                DataflowBuilder::new(self.catalog().state(), compute_instance);
-            dataflow_builder.build_materialized_view(
-                exported_sink_id,
-                internal_view_id,
-                debug_name,
-                &optimized_plan,
-                &RelationDesc::new(optimized_plan.typ(), column_names),
-            )
-        })?;
+            // Timestamp selection
+            let since = self.least_valid_read(&global_mir_plan.id_bundle());
+            let timestamped_plan = global_mir_plan.clone().resolve(since.clone());
 
-        // Collect the list of indexes used by the dataflow at this point
-        let used_indexes = UsedIndexes::new(
-            df
-                .index_imports
-                .iter()
-                .map(|(id, _index_import)| {
-                    (*id, df_metainfo.index_usage_types.get(id).expect("prune_and_annotate_dataflow_index_imports should have been called already").clone())
-                })
-                .collect(),
-        );
+            // MIR ⇒ LIR lowering and LIR ⇒ LIR optimization (global)
+            let global_lir_plan = optimizer.optimize(timestamped_plan)?;
 
-        df.set_as_of(as_of);
+            let (df_desc, df_meta) = global_lir_plan.unapply();
 
-        // In the actual sequencing of `CREATE MATERIALIZED VIEW` statements,
-        // the following DataflowDescription manipulations happen in the
-        // `ship_dataflow` call. However, since we don't want to ship, we have
-        // temporary duplicated the code below. This will be resolved once we
-        // implement the proposal from #20569.
-
-        // If the only outputs of the dataflow are sinks, we might be able to
-        // turn off the computation early, if they all have non-trivial
-        // `up_to`s.
-        //
-        // TODO: This should always be the case here so we can demote
-        // the outer index to a soft assert.
-        if df.index_exports.is_empty() {
-            df.until = Antichain::from_elem(Timestamp::MIN);
-            for (_, sink) in &df.sink_exports {
-                df.until.join_assign(&sink.up_to);
-            }
-        }
-
-        // Execute the `optimize/finalize_dataflow` stage.
-        let df = catch_unwind(broken, "finalize_dataflow", || {
-            self.finalize_dataflow(df, target_cluster_id)
+            Ok::<_, AdapterError>((df_desc, df_meta, used_indexes))
         })?;
 
         // Trace the resulting plan for the top-level `optimize` path.
-        trace_plan(&df);
+        trace_plan(&df_desc);
 
         // Return objects that need to be passed to the `ExplainContext`
         // when rendering explanations for the various trace entries.
-        Ok((used_indexes, None, df_metainfo, transient_items))
+        Ok((used_indexes, None, df_meta, transient_items))
+    }
+
+    /// Broadcasts a finalized dataflow to all workers.
+    pub(crate) async fn ship_dataflow1(
+        &mut self,
+        dataflow: DataflowDescription<Plan>,
+        instance: ComputeInstanceId,
+    ) {
+        let export_ids = dataflow.export_ids().collect();
+
+        self.controller
+            .active_compute()
+            .create_dataflow(instance, dataflow)
+            .unwrap_or_terminate("dataflow creation cannot fail");
+
+        self.initialize_compute_read_policies(
+            export_ids,
+            instance,
+            Some(DEFAULT_LOGICAL_COMPACTION_WINDOW_TS),
+        )
+        .await;
     }
 }
