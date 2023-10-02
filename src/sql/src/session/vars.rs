@@ -1714,6 +1714,11 @@ feature_flags!(
         "the COMMENT ON feature for objects",
         false, // default false
         false  // internal false
+    ),
+    (
+        enable_unified_optimizer_api,
+        "use the new unified optimzier API in bootstrap() and coordinator methods",
+        true
     )
 );
 
