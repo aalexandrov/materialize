@@ -1,0 +1,1 @@
+CREATE VIEW "$database"."$schema"."$name" AS $definition

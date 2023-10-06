@@ -1,0 +1,1 @@
+CREATE $idx_type "$name" IN CLUSTER "$cluster" ON "$database"."$schema"."$on_name" $idx_cols

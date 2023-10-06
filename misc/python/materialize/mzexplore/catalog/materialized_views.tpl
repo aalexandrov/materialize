@@ -1,0 +1,1 @@
+CREATE MATERIALIZED VIEW "$database"."$schema"."$name" IN CLUSTER "$cluster" AS $definition
