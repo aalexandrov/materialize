@@ -1910,6 +1910,8 @@ fn attempt_outer_equijoin(
     id_gen: &mut mz_ore::id_gen::IdGen,
     enable_new_outer_join_lowering: bool,
 ) -> Result<Option<MirRelationExpr>, PlanError> {
+    use mz_repr::explain::tracing::dbg_misc;
+
     // TODO(#22581): In theory, we can be smarter and also handle `on`
     // predicates that reference subqueries as long as these subqueries don't
     // reference `left` and `right` at the same time.
@@ -1981,6 +1983,8 @@ fn attempt_outer_equijoin(
             // apply the filter constraints here, to ensure nulls are not matched.
             .filter(on);
 
+            dbg_misc("join", &join.pretty());
+
             // We'll want to re-use the results of the join multiple times.
             join.let_in_fallible(id_gen, |id_gen, get_join| {
                 let mut result = get_join.clone();
@@ -1990,11 +1994,15 @@ fn attempt_outer_equijoin(
                 let both_keys_arity = join_keys.len();
                 let both_keys = get_join.restrict(join_keys).distinct();
 
+                dbg_misc("both_keys", &both_keys.pretty());
+
                 // The plan is now to determine the left and right rows matched in the
                 // inner join, subtract them from left and right respectively, pad what
                 // remains with nulls, and fold them in to `result`.
 
                 both_keys.let_in_fallible(id_gen, |_id_gen, get_both| {
+                    dbg_misc("get_both", &get_both.pretty());
+
                     if let JoinKind::LeftOuter { .. } | JoinKind::FullOuter = kind {
                         // Rows in `left` matched in the inner equijoin. This is
                         // a semi-join between `left` and `both_keys`.
@@ -2012,6 +2020,8 @@ fn attempt_outer_equijoin(
                         )
                         .project((0..(oa + la)).collect());
 
+                        dbg_misc("left_present", &left_present.pretty());
+
                         // Determine the types of nulls to use as filler.
                         let right_fill = rt
                             .into_iter()
@@ -2024,6 +2034,8 @@ fn attempt_outer_equijoin(
                             .union(get_left.clone())
                             .map(right_fill)
                             .union(result);
+
+                        dbg_misc("result", &result.pretty());
                     }
 
                     if let JoinKind::RightOuter | JoinKind::FullOuter = kind {
@@ -2110,10 +2122,15 @@ impl OnPredicates {
     ///    MirScalarExpr` with `canonicalize_predicates`.
     fn new(oa: usize, la: usize, ra: usize, sa: usize, on: Vec<MirScalarExpr>) -> Self {
         use mz_expr::BinaryFunc::Eq;
+        use mz_ore::str::separated;
+        use mz_repr::explain::tracing::dbg_misc;
 
         // Re-bind those locally for more compact pattern matching.
         const I_LHS: usize = OnPredicates::I_LHS;
         const I_RHS: usize = OnPredicates::I_RHS;
+
+        dbg_misc("on", separated(" AND ", on.iter()));
+        dbg_misc("arities", format!("{:?}", [oa, la, ra, sa]));
 
         // Self parameters.
         let mut predicates = Vec::with_capacity(on.len());
@@ -2134,14 +2151,18 @@ impl OnPredicates {
         };
 
         // Iterate over `on` elements and populate `predicates`.
+        let mut i = 0;
         for mut predicate in on {
+            dbg_misc(format!("on[{i}]"), &predicate.to_string());
             if predicate.might_error() {
                 tracing::debug!(case = "thetajoin (error)", "OnPredicates::new");
                 // Treat predicates that can produce a literal error as Theta.
+                dbg_misc(format!("on[{i}].typ"), "theta-join (err)");
                 predicates.push(OnPredicate::Theta(predicate));
             } else if has_subquery_refs(&predicate) {
                 tracing::debug!(case = "thetajoin (subquery)", "OnPredicates::new");
                 // Treat predicates referencing an `on` subquery as Theta.
+                dbg_misc(format!("on[{i}].typ"), "theta-join (subquery)");
                 predicates.push(OnPredicate::Theta(predicate));
             } else if let MirScalarExpr::CallBinary {
                 func: Eq,
@@ -2153,15 +2174,20 @@ impl OnPredicates {
                 let inputs1 = lookup_inputs(expr1);
                 let inputs2 = lookup_inputs(expr2);
 
+                dbg_misc(format!("on[{i}].inputs1"), separated(", ", inputs1.iter()));
+                dbg_misc(format!("on[{i}].inputs2"), separated(", ", inputs2.iter()));
+
                 match (&inputs1[..], &inputs2[..]) {
                     // Neither side references an input. This could be a
                     // constant expression or an expression that depends only on
                     // the outer context.
                     ([], []) => {
+                        dbg_misc(format!("on[{i}].typ"), "local (eq const)");
                         predicates.push(OnPredicate::Const(predicate));
                     }
                     // Both sides reference different inputs.
                     ([I_LHS], [I_RHS]) => {
+                        dbg_misc(format!("on[{i}].typ"), "equijoin");
                         let lhs = expr1.take();
                         let mut rhs = expr2.take();
                         rhs.permute(&rhs_permutation);
@@ -2169,6 +2195,7 @@ impl OnPredicates {
                     }
                     // Both sides reference different inputs (swapped).
                     ([I_RHS], [I_LHS]) => {
+                        dbg_misc(format!("on[{i}].typ"), "equijoin (swapped)");
                         let lhs = expr2.take();
                         let mut rhs = expr1.take();
                         rhs.permute(&rhs_permutation);
@@ -2176,16 +2203,19 @@ impl OnPredicates {
                     }
                     // Both sides reference the left input or no input.
                     ([I_LHS], [I_LHS]) | ([I_LHS], []) | ([], [I_LHS]) => {
+                        dbg_misc(format!("on[{i}].typ"), "local (eq lhs)");
                         predicates.push(OnPredicate::Lhs(predicate));
                     }
                     // Both sides reference the right input or no input.
                     ([I_RHS], [I_RHS]) | ([I_RHS], []) | ([], [I_RHS]) => {
+                        dbg_misc(format!("on[{i}].typ"), "local (eq rhs)");
                         predicate.permute(&rhs_permutation);
                         predicates.push(OnPredicate::Rhs(predicate));
                     }
                     // At least one side references more than one input.
                     _ => {
                         tracing::debug!(case = "thetajoin (eq)", "OnPredicates::new");
+                        dbg_misc(format!("on[{i}].typ"), "thetajoin (eq)");
                         predicates.push(OnPredicate::Theta(predicate));
                     }
                 }
@@ -2193,29 +2223,36 @@ impl OnPredicates {
                 // Obtain the non-outer inputs referenced by this predicate.
                 let inputs = lookup_inputs(&predicate);
 
+                dbg_misc(format!("on[{i}].inputs"), separated(", ", inputs.iter()));
+
                 match &inputs[..] {
                     // The predicate references no inputs. This could be a
                     // constant expression or an expression that depends only on
                     // the outer context.
                     [] => {
+                        dbg_misc(format!("on[{i}].typ"), "local (non-eq const)");
                         predicates.push(OnPredicate::Const(predicate));
                     }
                     // The predicate references only the left input.
                     [I_LHS] => {
+                        dbg_misc(format!("on[{i}].typ"), "local (non-eq lhs)");
                         predicates.push(OnPredicate::Lhs(predicate));
                     }
                     // The predicate references only the right input.
                     [I_RHS] => {
+                        dbg_misc(format!("on[{i}].typ"), "local (non-eq rhs)");
                         predicate.permute(&rhs_permutation);
                         predicates.push(OnPredicate::Rhs(predicate));
                     }
                     // The predicate references both inputs.
                     _ => {
                         tracing::debug!(case = "thetajoin (non-eq)", "OnPredicates::new");
+                        dbg_misc(format!("on[{i}].typ"), "thetajoin (non-eq)");
                         predicates.push(OnPredicate::Theta(predicate));
                     }
                 }
             }
+            i += 1;
         }
 
         Self { predicates, oa }
