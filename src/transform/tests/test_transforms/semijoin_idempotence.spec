@@ -27,6 +27,13 @@ DefSource name=t1 keys=[[#0]]
 ----
 Source defined as t1
 
+# Define t2 source
+define
+DefSource name=t2
+  - c0: bigint
+  - c1: bigint
+----
+Source defined as t2
 
 # Basic case
 apply pipeline=semijoin_idempotence
@@ -68,6 +75,61 @@ With
       Get t0
       Get t1
 
+## From https://github.com/MaterializeInc/materialize/pull/22560#issuecomment-1776717663
+apply pipeline=semijoin_idempotence
+Return
+  Join on=(#0 = #1)
+    Project (#1)
+      Get t1
+    Distinct project=[#0]
+      Get l0
+With
+  cte l0 =
+    Project (#0)
+      Join on=(#0 = #1)
+        Project (#1)
+          Get t1
+        Project (#1)
+          Get t2
+----
+Return
+  Join on=(#0 = #1)
+    Project (#1)
+      Get t1
+    Distinct project=[#0]
+      Get l0
+With
+  cte l0 =
+    Project (#0)
+      Join on=(#0 = #1)
+        Project (#1)
+          Get t1
+        Project (#1)
+          Get t2
+
+## From https://github.com/MaterializeInc/materialize/pull/22560#issuecomment-1776717663
+apply pipeline=semijoin_idempotence
+Return
+  Join on=(#0 = #2)
+    Get t2
+    Distinct project=[#0]
+      Get l0
+With
+  cte l0 =
+    Join on=(#0 = #2)
+      Get t2
+      Get t1
+----
+Return
+  Join on=(#0 = #2)
+    Get t2
+    Project (#0)
+      Get t1
+With
+  cte l0 =
+    Join on=(#0 = #2)
+      Get t2
+      Get t1
 
 ## LetRec cases
 ## ------------
