@@ -42,3 +42,12 @@ Distinct project=[#0, #1] exp_group_size=4
     - ("a", 4)
 ----
 roundtrip OK
+
+# Distinct with key
+roundtrip
+Distinct project=[(#1 + 5), (#1 + 7)] exp_group_size=4
+  Constant // { types: "(text, bigint)" }
+    - ("a", 2)
+    - ("a", 4)
+----
+roundtrip OK
