@@ -12,7 +12,7 @@ axum = { version = "0.6.20", features = ["headers"] }
 bytesize = "1.1.0"
 cfg-if = "1.0.0"
 headers = "0.3.8"
-http = "0.2.8"
+http = "0.2.10"
 include_dir = "0.7.3"
 once_cell = "1.16.0"
 mime = "0.3.16"

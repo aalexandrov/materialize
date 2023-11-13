@@ -27,7 +27,7 @@ either = { version = "1.8.0", features = ["serde"] }
 fail = { version = "0.5.1", features = ["failpoints"] }
 futures = "0.3.25"
 globset = { version = "0.4.9", features = ["serde1"] }
-http = "0.2.8"
+http = "0.2.10"
 indexmap = { version = "2.0.0", default-features = false, features = ["std"] }
 itertools = { version = "0.10.5" }
 maplit = "1.0.2"

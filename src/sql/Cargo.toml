@@ -18,7 +18,7 @@ enum-kinds = "0.5.1"
 fail = { version = "0.5.1", features = ["failpoints"] }
 globset = "0.4.9"
 hex = "0.4.3"
-http = "0.2.8"
+http = "0.2.10"
 itertools = "0.10.5"
 once_cell = "1.16.0"
 maplit = "1.0.2"

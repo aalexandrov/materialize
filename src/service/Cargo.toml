@@ -13,7 +13,7 @@ async-trait = "0.1.68"
 clap = { version = "3.2.24", features = ["env", "derive"] }
 crossbeam-channel = "0.5.8"
 futures = "0.3.25"
-http = "0.2.8"
+http = "0.2.10"
 itertools = "0.10.5"
 mz-aws-secrets-controller = { path = "../aws-secrets-controller" }
 mz-build-info = { path = "../build-info" }
