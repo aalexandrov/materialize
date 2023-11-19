@@ -60,7 +60,7 @@ workspace-hack = { version = "0.0.0", path = "../workspace-hack", optional = tru
 
 # For the `tracing` feature
 atty = { version = "0.2.14", optional = true }
-http = { version = "0.2.8", optional = true }
+http = { version = "1.0.0", optional = true }
 tracing = { version = "0.1.37", optional = true }
 tracing-opentelemetry = { version = "0.20.0", optional = true }
 tonic = { version = "0.9.2", features = ["transport"], optional = true }
