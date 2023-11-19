@@ -24,7 +24,7 @@ clap = { version = "3.2.24", features = ["wrap_help", "env", "derive"] }
 fail = { version = "0.5.1", features = ["failpoints"] }
 futures = "0.3.25"
 headers = "0.3.8"
-http = "0.2.8"
+http = "1.0.0"
 http-body = "0.4.5"
 humantime = "2.1.0"
 hyper = { version = "0.14.23", features = ["http1", "server"] }
