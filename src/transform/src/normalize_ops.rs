@@ -30,6 +30,8 @@ impl crate::Transform for NormalizeOps {
         relation: &mut MirRelationExpr,
         _ctx: &mut TransformCtx,
     ) -> Result<(), crate::TransformError> {
+        tracing::debug!(target: "optimizer", "normalize_ops");
+
         // Canonicalize and fuse various operators as a bottom-up transforms.
         relation.try_visit_mut_post::<_, crate::TransformError>(
             &mut |expr: &mut MirRelationExpr| {

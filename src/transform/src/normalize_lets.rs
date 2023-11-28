@@ -70,6 +70,7 @@ impl crate::Transform for NormalizeLets {
         relation: &mut MirRelationExpr,
         _ctx: &mut TransformCtx,
     ) -> Result<(), crate::TransformError> {
+        tracing::debug!(target: "optimizer", "normalize_lets");
         let result = self.transform_without_trace(relation);
         mz_repr::explain::trace_plan(&*relation);
         result

@@ -307,6 +307,8 @@ impl Transform for Fixpoint {
         relation: &mut MirRelationExpr,
         ctx: &mut TransformCtx,
     ) -> Result<(), TransformError> {
+        tracing::debug!(target: "optimizer", "fixpoint");
+
         // The number of iterations for a relation to settle depends on the
         // number of nodes in the relation. Instead of picking an arbitrary
         // hard limit on the number of iterations, we use a soft limit and
@@ -318,6 +320,7 @@ impl Transform for Fixpoint {
             let mut original_count = 0;
             relation.try_visit_post::<_, TransformError>(&mut |_| Ok(original_count += 1))?;
             for i in 0..self.limit {
+                tracing::debug!(target: "optimizer", iteration = i, "fixpoint");
                 let original = relation.clone();
 
                 let span = tracing::span!(

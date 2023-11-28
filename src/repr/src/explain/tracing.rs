@@ -15,7 +15,7 @@ use std::fmt::{Debug, Display};
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
-use tracing::{span, subscriber, Dispatch, Level};
+use tracing::{debug, span, subscriber, Dispatch, Level};
 use tracing_core::{Event, Interest, Metadata};
 use tracing_subscriber::{field, layer, Registry};
 
@@ -265,11 +265,22 @@ impl<T: 'static> PlanTrace<T> {
             let times = self.times.lock().expect("times shouldn't be poisoned");
             if let (Some(full_start), Some(span_start)) = (times.first(), times.last()) {
                 let mut entries = self.entries.lock().expect("entries shouldn't be poisoned");
-                let time = std::time::Instant::now();
+                let instant = std::time::Instant::now();
+                let span_duration = instant.duration_since(*span_start);
+                let full_duration = instant.duration_since(*full_start);
+
+                debug!(
+                    target: "optimizer",
+                    current_path = current_path,
+                    span_duration = ?span_duration,
+                    full_duration = ?full_duration,
+                    "PlanTrace::push",
+                );
+
                 entries.push(TraceEntry {
-                    instant: time,
-                    span_duration: time.duration_since(*span_start),
-                    full_duration: time.duration_since(*full_start),
+                    instant,
+                    span_duration,
+                    full_duration,
                     path: current_path,
                     plan: plan.clone(),
                 });
