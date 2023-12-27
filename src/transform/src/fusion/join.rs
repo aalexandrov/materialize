@@ -143,22 +143,22 @@ impl JoinBuilder {
         // Update and push all of the variables.
         for mut equivalence in equivalences.drain(..) {
             for expr in equivalence.iter_mut() {
-                expr.visit_mut_post(&mut |e| {
+                expr.visit_pre_mut(|e| {
                     if let MirScalarExpr::Column(c) = e {
                         *c += self.num_columns;
                     }
-                })?;
+                });
             }
             self.equivalences.push(equivalence);
         }
 
         if let Some(mut predicates) = predicates {
             for mut expr in predicates.drain(..) {
-                expr.visit_mut_post(&mut |e| {
+                expr.visit_pre_mut(|e| {
                     if let MirScalarExpr::Column(c) = e {
                         *c += self.num_columns;
                     }
-                })?;
+                });
                 self.predicates.push(expr);
             }
         }
