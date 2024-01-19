@@ -17,7 +17,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
 
-use mz_expr::MirRelationExpr;
 use mz_pgcopy::{CopyCsvFormatParams, CopyFormatParams, CopyTextFormatParams};
 use mz_repr::adt::numeric::NumericMaxScale;
 use mz_repr::bytes::ByteSize;
@@ -46,7 +45,7 @@ use crate::plan::statement::{ddl, StatementContext, StatementDesc};
 use crate::plan::with_options::{self, TryFromValue};
 use crate::plan::{
     self, side_effecting_func, transform_ast, CopyToFrom, CopyToPlan, CreateSinkPlan,
-    ExplainSinkSchemaPlan, ExplainTimestampPlan,
+    ExplainSinkSchemaPlan, ExplainTimestampPlan, HirRelationExpr,
 };
 use crate::plan::{
     query, CopyFormat, CopyFromPlan, ExplainPlanPlan, InsertPlan, MutationKind, Params, Plan,
@@ -118,7 +117,7 @@ pub fn plan_delete(
     params: &Params,
 ) -> Result<Plan, PlanError> {
     let rtw_plan = query::plan_delete_query(scx, stmt)?;
-    plan_read_then_write(MutationKind::Delete, scx, params, rtw_plan)
+    plan_read_then_write(MutationKind::Delete, params, rtw_plan)
 }
 
 pub fn describe_update(
@@ -135,12 +134,11 @@ pub fn plan_update(
     params: &Params,
 ) -> Result<Plan, PlanError> {
     let rtw_plan = query::plan_update_query(scx, stmt)?;
-    plan_read_then_write(MutationKind::Update, scx, params, rtw_plan)
+    plan_read_then_write(MutationKind::Update, params, rtw_plan)
 }
 
 pub fn plan_read_then_write(
     kind: MutationKind,
-    scx: &StatementContext,
     params: &Params,
     query::ReadThenWritePlan {
         id,
@@ -150,7 +148,6 @@ pub fn plan_read_then_write(
     }: query::ReadThenWritePlan,
 ) -> Result<Plan, PlanError> {
     selection.bind_parameters(params)?;
-    let selection = selection.lower(scx.catalog.system_vars())?;
     let mut assignments_outer = BTreeMap::new();
     for (idx, mut set) in assignments {
         set.bind_parameters(params)?;
@@ -486,7 +483,7 @@ pub fn plan_query(
     query: Query<Aug>,
     params: &Params,
     lifetime: QueryLifetime,
-) -> Result<query::PlannedRootQuery<MirRelationExpr>, PlanError> {
+) -> Result<query::PlannedRootQuery<HirRelationExpr>, PlanError> {
     let query::PlannedRootQuery {
         mut expr,
         desc,
@@ -496,7 +493,7 @@ pub fn plan_query(
     expr.bind_parameters(params)?;
 
     Ok(query::PlannedRootQuery {
-        expr: expr.lower(scx.catalog.system_vars())?,
+        expr,
         desc,
         finishing,
         scope,
@@ -618,7 +615,7 @@ pub fn plan_subscribe(
             let desc = query.desc.clone();
             (
                 SubscribeFrom::Query {
-                    expr: query.expr,
+                    expr: query.expr.lower(scx.catalog.system_vars())?,
                     desc: query.desc,
                 },
                 desc,
@@ -964,7 +961,7 @@ pub fn plan_copy(
                         scope: _,
                     } = plan_query(scx, stmt.query, &Params::empty(), QueryLifetime::OneShot)?;
                     CopyToFrom::Query {
-                        expr,
+                        expr: expr.lower(scx.catalog.system_vars())?,
                         desc,
                         finishing,
                     }
