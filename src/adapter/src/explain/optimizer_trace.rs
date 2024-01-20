@@ -61,7 +61,7 @@ impl OptimizerTrace {
             let subscriber = DelegateSubscriber::default()
                 // Collect `explain_plan` types that are not used in the regular explain
                 // path, but are useful when instrumenting code for debugging purpuses.
-                .with(PlanTrace::<String>::new(path))
+                .with(PlanTrace::<String>::debug(path))
                 .with(PlanTrace::<HirScalarExpr>::new(path))
                 .with(PlanTrace::<MirScalarExpr>::new(path))
                 // Collect `explain_plan` types that are used in the regular explain path.

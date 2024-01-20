@@ -36,6 +36,8 @@ pub struct PlanTrace<T> {
     times: Mutex<Vec<std::time::Instant>>,
     /// A sequence of entries associating for a specific plan type `T`.
     entries: Mutex<Vec<TraceEntry<T>>>,
+    /// Whether to print extra debug statements
+    debug: bool,
 }
 
 /// A struct created as a reflection of a [`trace_plan`] call.
@@ -184,9 +186,16 @@ where
             path.push('/');
         }
         path.push_str(segment.as_str());
+        if self.debug {
+            println!("on_new_span (id = {_id:?}, path = {path})");
+        }
     }
 
     fn on_enter(&self, _id: &span::Id, _ctx: layer::Context<'_, S>) {
+        if self.debug {
+            let path = self.path.lock().expect("path shouldn't be poisoned");
+            println!("on_enter(id = {_id:?}, path = {path})");
+        }
         let now = std::time::Instant::now();
         // set start value on first ever on_enter
         let mut start = self.start.lock().expect("start shouldn't be poisoned");
@@ -199,6 +208,9 @@ where
     fn on_exit(&self, _id: &span::Id, _ctx: layer::Context<'_, S>) {
         // truncate last segment from path
         let mut path = self.path.lock().expect("path shouldn't be poisoned");
+        if self.debug {
+            println!("on_exit(id = {_id:?}, path = {path})");
+        }
         let new_len = path.rfind('/').unwrap_or(0);
         path.truncate(new_len);
         // pop from time stack
@@ -235,6 +247,20 @@ impl<T: 'static> PlanTrace<T> {
             start: Mutex::new(None),
             times: Mutex::new(Default::default()),
             entries: Mutex::new(Default::default()),
+            debug: false,
+        }
+    }
+
+    /// Create a new trace for plans of type `T` that will only accumulate
+    /// [`TraceEntry`] instances along the prefix of the given `path`.
+    pub fn debug(path: Option<&'static str>) -> Self {
+        Self {
+            find: path,
+            path: Mutex::new(String::with_capacity(256)),
+            start: Mutex::new(None),
+            times: Mutex::new(Default::default()),
+            entries: Mutex::new(Default::default()),
+            debug: true,
         }
     }
 

@@ -1,0 +1,140 @@
+# Copyright Materialize, Inc. and contributors. All rights reserved.
+#
+# Use of this software is governed by the Business Source License
+# included in the LICENSE file at the root of this repository.
+#
+# As of the Change Date specified in that file, in accordance with
+# the Business Source License, use of this software will be governed
+# by the Apache License, Version 2.0.
+
+mode cockroach
+
+simple conn=mz_system,user=mz_system
+ALTER SYSTEM SET enable_new_outer_join_lowering = false;
+----
+COMPLETE 0
+
+simple conn=mz_system,user=mz_system
+ALTER SYSTEM SET enable_explain_broken = true;
+----
+COMPLETE 0
+
+statement ok
+DROP SCHEMA IF EXISTS left_joins_raw CASCADE;
+
+statement ok
+DROP SCHEMA IF EXISTS left_joins CASCADE;
+
+statement ok
+CREATE SCHEMA left_joins_raw;
+
+statement ok
+CREATE SCHEMA left_joins;
+
+statement ok
+CREATE TABLE left_joins_raw.outer(
+    x int not null,
+    y int not null
+);
+
+statement ok
+CREATE MATERIALIZED VIEW left_joins.outer AS
+SELECT DISTINCT ON(x, y) * FROM left_joins_raw.outer;
+
+statement ok
+CREATE TABLE left_joins_raw.facts(
+    facts_k01 int not null,
+    dim01_k01 int,
+    dim02_k01 int,
+    dim03_k01 int,
+    facts_d01 int,
+    facts_d02 int,
+    facts_d03 int,
+    facts_d04 int,
+    facts_d05 int
+);
+
+statement ok
+CREATE MATERIALIZED VIEW left_joins.facts AS
+SELECT DISTINCT ON(facts_k01) * FROM left_joins_raw.facts;
+
+statement ok
+CREATE TABLE left_joins_raw.dim01(
+    dim01_k01 int,
+    dim01_d01 int,
+    dim01_d02 int,
+    dim01_d03 int,
+    dim01_d04 int,
+    dim01_d05 int
+);
+
+statement ok
+CREATE MATERIALIZED VIEW left_joins.dim01 AS
+SELECT DISTINCT ON(dim01_k01) * FROM left_joins_raw.dim01;
+
+statement ok
+CREATE TABLE left_joins_raw.dim02(
+    dim02_k01 int,
+    dim02_d01 int,
+    dim02_d02 int,
+    dim02_d03 int,
+    dim02_d04 int,
+    dim02_d05 int
+);
+
+statement ok
+CREATE MATERIALIZED VIEW left_joins.dim02 AS
+SELECT DISTINCT ON(dim02_k01) * FROM left_joins_raw.dim02;
+
+# EXPLAIN a SELECT with the feature turned in the EXPLAIN config.
+query T multiline
+EXPLAIN OPTIMIZED PLAN WITH(enable_new_outer_join_lowering, humanized_exprs, arity) FOR BROKEN
+SELECT
+  facts.facts_k01,
+  facts.facts_d01,
+  facts.facts_d02,
+  dim01.dim01_k01,
+  dim01.dim01_d01,
+  dim01.dim01_d02
+FROM
+  left_joins_raw.facts LEFT JOIN
+  left_joins_raw.dim01 ON(
+    coalesce(facts.dim01_k01, 5) = coalesce(dim01.dim01_k01, 5) AND
+    facts_d01 > 42 AND dim01_d02 < 24
+  );
+----
+Explained Query:
+  Return // { arity: 6 }
+    Union // { arity: 6 }
+      Map (null, null, null) // { arity: 6 }
+        Union // { arity: 3 }
+          Negate // { arity: 3 }
+            Project (#0, #2, #3) // { arity: 3 }
+              Join on=(#4 = coalesce(#1{dim01_k01}, 5)) type=differential // { arity: 5 }
+                Get l0 // { arity: 4 }
+                ArrangeBy keys=[[#0]] // { arity: 1 }
+                  Distinct project=[coalesce(#0{dim01_k01}, 5)] // { arity: 1 }
+                    Project (#1) // { arity: 1 }
+                      Get l1 // { arity: 7 }
+          Project (#0, #4, #5) // { arity: 3 }
+            ReadStorage materialize.left_joins_raw.facts // { arity: 9 }
+      Project (#0, #2..=#6) // { arity: 6 }
+        Get l1 // { arity: 7 }
+  With
+    cte l1 =
+      Join on=(coalesce(#1{dim01_k01}, 5) = coalesce(#4{dim01_k01}, 5)) type=differential // { arity: 7 }
+        Get l0 // { arity: 4 }
+        ArrangeBy keys=[[coalesce(#0{dim01_k01}, 5)]] // { arity: 3 }
+          Project (#0..=#2) // { arity: 3 }
+            Filter (#2{dim01_d02} < 24) // { arity: 6 }
+              ReadStorage materialize.left_joins_raw.dim01 // { arity: 6 }
+    cte l0 =
+      ArrangeBy keys=[[coalesce(#1{dim01_k01}, 5)]] // { arity: 4 }
+        Project (#0, #1, #4, #5) // { arity: 4 }
+          Filter (#4{facts_d01} > 42) // { arity: 9 }
+            ReadStorage materialize.left_joins_raw.facts // { arity: 9 }
+
+Source materialize.left_joins_raw.dim01
+  filter=((#2{dim01_d02} < 24))
+
+EOF
