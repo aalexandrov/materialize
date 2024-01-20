@@ -2647,39 +2647,47 @@ fn test_cancel_read_then_write() {
         .retry(|_state| {
             let mut client1 = server.connect(postgres::NoTls).unwrap();
             let mut client2 = server.connect(postgres::NoTls).unwrap();
-            let cancel_token = client2.cancel_token();
+            let client2_cancel = client2.cancel_token();
 
             client1.batch_execute("DELETE FROM foo").unwrap();
             client1.batch_execute("SET statement_timeout = '5s'").unwrap();
-            client1
-                .batch_execute("INSERT INTO foo VALUES ('hello', 10)")
-                .unwrap();
+            client1.batch_execute("INSERT INTO foo VALUES ('hello', 10)").unwrap();
 
-            let handle1 = thread::spawn(move || {
-                let err =  client1
-                    .batch_execute("insert into foo select a, case when mz_unsafe.mz_sleep(ts) > 0 then 0 end as ts from foo")
-                    .unwrap_err();
-                assert_contains!(
-                    err.to_string(),
-                    "statement timeout"
-                );
-                client1
+            // Execute INSERT #1, which read from `foo` and sleeps
+            // for 10 seconds in clusterd before writing into `foo`.
+            let insert1 = thread::spawn(move || {
+                let query = "INSERT INTO foo SELECT a, CASE WHEN mz_unsafe.mz_sleep(ts) > 0 then 0 end as ts from foo;";
+                let error = client1.batch_execute(query).unwrap_err();
+                assert_contains!(error.to_string(), "canceling statement due to statement timeout");
             });
+
+            // Wait a bit.
             std::thread::sleep(Duration::from_millis(100));
-            let handle2 = thread::spawn(move || {
-                client2
-                .batch_execute("insert into foo values ('blah', 1);")
-                .unwrap();
+
+            // Execute INSERT #2, which can write into `foo`
+            // immediately, but has to wait for INSERT #2 to complete first.
+            let insert2 = thread::spawn(move || {
+                let query = "INSERT INTO foo VALUES ('blah', 1);";
+                let error = client2.batch_execute(query).unwrap_err();
+                assert_contains!(error.to_string(), "canceling statement due to user request");
             });
+
+            // Wait a bit.
             std::thread::sleep(Duration::from_millis(100));
-            cancel_token.cancel_query(postgres::NoTls)?;
-            let mut client1 = handle1.join().unwrap();
-            handle2.join().unwrap();
-            let rows:i64 = client1.query_one ("SELECT count(*) FROM foo", &[]).unwrap().get(0);
+
+            // Sent cancel signal to client #2.
+            client2_cancel.cancel_query(postgres::NoTls)?;
+
+            // Wait for both threads to join.
+            insert1.join().unwrap();
+            insert2.join().unwrap();
+
             // We ran 3 inserts. First succeeded. Second timedout. Third cancelled.
+            let rows: i64 = client.query_one ("SELECT count(*) FROM foo", &[]).unwrap().get(0);
             if rows !=1 {
                 anyhow::bail!("unexpected row count: {rows}");
             }
+
             Ok::<_, anyhow::Error>(())
         })
         .unwrap();
