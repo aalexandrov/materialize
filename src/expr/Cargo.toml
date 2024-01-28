@@ -38,7 +38,7 @@ mz-regexp = { path = "../regexp" }
 mz-repr = { path = "../repr" }
 mz-sql-parser = { path = "../sql-parser" }
 num = "0.4.0"
-num_enum = "0.5.7"
+num_enum = "0.7.2"
 ordered-float = { version = "3.4.0", features = ["serde"] }
 paste = "1.0.11"
 prost = { version = "0.11.3", features = ["no-recursion-limit"] }
