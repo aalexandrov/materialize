@@ -46,6 +46,9 @@ impl crate::Transform for Join {
         relation: &mut MirRelationExpr,
         _: &mut TransformCtx,
     ) -> Result<(), TransformError> {
+        // We need to stick with post-order here because `action` only fuses a
+        // Join with its direct children. This means that we can only fuse a
+        // tree of Join nodes in a single pass if we work bottom-up.
         relation.try_visit_mut_post(&mut Self::action)?;
         mz_repr::explain::trace_plan(&*relation);
         Ok(())
