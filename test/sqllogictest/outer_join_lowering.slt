@@ -197,7 +197,7 @@ EOF
 # ON predicates with non-trivial equi-join conjuncts were previously planned using
 # the fallback lowering strategy.
 query T multiline
-EXPLAIN DECORRELATED PLAN WITH(disable_new_outer_join_lowering, humanized_exprs, arity) FOR
+EXPLAIN DECORRELATED PLAN WITH(enable_new_outer_join_lowering = false, humanized_exprs, arity) FOR
 SELECT * FROM left_joins.outer CROSS JOIN LATERAL (
   SELECT
     facts.facts_k01,
@@ -373,7 +373,7 @@ EOF
 # ON predicates with at least one equi-join conjunct were previouisly planned
 # using the fallback lowering strategy.
 query T multiline
-EXPLAIN DECORRELATED PLAN WITH(disable_new_outer_join_lowering, humanized_exprs, arity) FOR
+EXPLAIN DECORRELATED PLAN WITH(enable_new_outer_join_lowering = false, humanized_exprs, arity) FOR
 SELECT * FROM left_joins.outer CROSS JOIN LATERAL (
   SELECT
     facts.facts_k01,

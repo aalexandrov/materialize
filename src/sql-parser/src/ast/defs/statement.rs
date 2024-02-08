@@ -3063,7 +3063,7 @@ impl_display_t!(SubscribeRelation);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExplainPlanStatement<T: AstInfo> {
     pub stage: ExplainStage,
-    pub config_flags: Vec<Ident>,
+    pub with_options: Vec<ExplainPlanOption<T>>,
     pub format: ExplainFormat,
     pub explainee: Explainee<T>,
 }
@@ -3072,9 +3072,9 @@ impl<T: AstInfo> AstDisplay for ExplainPlanStatement<T> {
     fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
         f.write_str("EXPLAIN ");
         f.write_node(&self.stage);
-        if !self.config_flags.is_empty() {
-            f.write_str(" WITH(");
-            f.write_node(&display::comma_separated(&self.config_flags));
+        if !self.with_options.is_empty() {
+            f.write_str(" WITH (");
+            f.write_node(&display::comma_separated(&self.with_options));
             f.write_str(")");
         }
         f.write_str(" AS ");
@@ -3084,6 +3084,30 @@ impl<T: AstInfo> AstDisplay for ExplainPlanStatement<T> {
     }
 }
 impl_display_t!(ExplainPlanStatement);
+
+impl_simple_options!(ExplainPlanOption {
+    arity,
+    cardinality,
+    column_names,
+    join_impls,
+    humanized_exprs,
+    keys,
+    linear_chains,
+    non_negative,
+    no_fast_path,
+    no_notices,
+    node_ids,
+    raw,
+    raw_plans,
+    raw_syntax,
+    redacted,
+    subtree_size,
+    timing,
+    types,
+    filter_pushdown,
+    enable_new_outer_join_lowering,
+    enable_eager_delta_joins,
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExplainSinkSchemaFor {
