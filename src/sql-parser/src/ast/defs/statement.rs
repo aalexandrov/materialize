@@ -1759,7 +1759,7 @@ impl AstDisplay for ClusterOptionName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// An option in a `CREATE CLUSTER` ostatement.
+/// An option in a `CREATE CLUSTER` statement.
 pub struct ClusterOption<T: AstInfo> {
     pub name: ClusterOptionName,
     pub value: Option<WithOptionValue<T>>,
@@ -1775,6 +1775,11 @@ impl<T: AstInfo> AstDisplay for ClusterOption<T> {
     }
 }
 
+impl_simple_options!(ClusterFeature {
+    enable_new_outer_join_lowering,
+    enable_eager_delta_joins,
+});
+
 /// `CREATE CLUSTER ..`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CreateClusterStatement<T: AstInfo> {
@@ -1782,6 +1787,8 @@ pub struct CreateClusterStatement<T: AstInfo> {
     pub name: Ident,
     /// The comma-separated options.
     pub options: Vec<ClusterOption<T>>,
+    /// The comma-separated features enabled on the cluster.
+    pub features: Vec<ClusterFeature<T>>,
 }
 
 impl<T: AstInfo> AstDisplay for CreateClusterStatement<T> {
@@ -1791,6 +1798,11 @@ impl<T: AstInfo> AstDisplay for CreateClusterStatement<T> {
         if !self.options.is_empty() {
             f.write_str(" (");
             f.write_node(&display::comma_separated(&self.options));
+            f.write_str(")");
+        }
+        if !self.features.is_empty() {
+            f.write_str(" FEATURES (");
+            f.write_node(&display::comma_separated(&self.features));
             f.write_str(")");
         }
     }
