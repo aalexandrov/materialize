@@ -34,6 +34,56 @@ use crate::ast::{
     UnresolvedSchemaName, Value,
 };
 
+/// A macro for generating options that are parsed as `<ident> = <value>` pairs.
+///
+/// Note: the macro is not very hygienic at the moment because it is only meant
+/// to be used in this module.
+macro_rules! impl_simple_options {
+    ($name:ident { $($option:ident,)* }) => {
+        paste::paste! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+            pub enum [<$name Name>] {
+                $([<$option:camel>],)*
+            }
+
+            impl AstDisplay for [<$name Name>] {
+                fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+                    match self {
+                        $(Self::[<$option:camel>] => f.write_str(stringify!($option)),)*
+                    }
+                }
+            }
+
+            impl TryFrom<Ident> for [<$name Name>] {
+                type Error = &'static str;
+
+                fn try_from(value: Ident) -> Result<Self, Self::Error> {
+                    Ok(match value.as_str() {
+                        $(stringify!($option) => Self::[<$option:camel>],)*
+                        _ => return Err(stringify!(a valid option)),
+                    })
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+            pub struct $name<T: AstInfo> {
+                pub name: [<$name Name>],
+                pub value: Option<WithOptionValue<T>>,
+            }
+
+            impl<T: AstInfo> AstDisplay for $name<T> {
+                fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+                    f.write_node(&self.name);
+                    if let Some(v) = &self.value {
+                        f.write_str(" = ");
+                        f.write_node(v);
+                    }
+                }
+            }
+        }
+    };
+}
+
 /// A top-level statement (SELECT, INSERT, CREATE, etc.)
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EnumKind)]

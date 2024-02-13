@@ -17,6 +17,7 @@ enum-kinds = "0.5.1"
 itertools = "0.10.5"
 mz-ore = { path = "../ore", default-features = false, features = ["stack", "test"] }
 mz-sql-lexer = { path = "../sql-lexer", default-features = false }
+paste = "1.0.11"
 phf = { version = "0.11.1", features = ["uncased"] }
 serde = { version = "1.0.152", features = ["derive"] }
 thiserror = "1.0.37"
@@ -31,6 +32,9 @@ mz-sql-parser = { path = ".", features = ["test"] }
 
 [build-dependencies]
 anyhow = "1.0.66"
+quote = "1.0.23"
+syn = { version = "1.0.107", features = ["extra-traits", "full", "parsing"] }
+proc-macro2 = "1.0.60"
 mz-ore = { path = "../ore", default-features = false }
 mz-walkabout = { path = "../walkabout", default-features = false }
 

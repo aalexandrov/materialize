@@ -42,6 +42,8 @@ mod parse;
 pub mod ir;
 
 pub use gen::{gen_fold, gen_visit, gen_visit_mut};
+pub use ir::analyze;
+pub use parse::parse_mod;
 
 /// Loads type definitions from the specified module.
 ///
