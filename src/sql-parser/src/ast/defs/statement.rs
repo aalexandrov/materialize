@@ -36,6 +36,18 @@ use crate::ast::{
 
 /// A macro for generating options that are parsed as `<ident> = <value>` pairs.
 ///
+/// Expected syntax:
+///
+/// ```ignore
+/// impl_simple_options!(Foo {
+///     my_option,
+///     my_other_options,
+/// })
+/// ```
+///
+/// The $name should be a valid ASCII CamelCase string.
+/// The $option values must be valid ASCII snake_case strings.
+///
 /// Note: the macro is not very hygienic at the moment because it is only meant
 /// to be used in this module.
 macro_rules! impl_simple_options {
@@ -46,33 +58,36 @@ macro_rules! impl_simple_options {
                 $([<$option:camel>],)*
             }
 
-            impl AstDisplay for [<$name Name>] {
-                fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+            impl crate::ast::display::AstDisplay for [<$name Name>] {
+                fn fmt<W: fmt::Write>(&self, f: &mut crate::ast::display::AstFormatter<W>) {
                     match self {
-                        $(Self::[<$option:camel>] => f.write_str(stringify!($option)),)*
+                        $(Self::[<$option:camel>] => {
+                            let tokens = stringify!($option).replace("_", " ");
+                            f.write_str(tokens.to_ascii_uppercase())
+                        },)*
                     }
                 }
             }
 
-            impl TryFrom<Ident> for [<$name Name>] {
-                type Error = &'static str;
-
-                fn try_from(value: Ident) -> Result<Self, Self::Error> {
-                    Ok(match value.as_str() {
-                        $(stringify!($option) => Self::[<$option:camel>],)*
-                        _ => return Err(stringify!(a valid option)),
-                    })
+            pub(crate) fn [<parse_ $name:snake _name>]<'a>(parser: &mut crate::parser::Parser<'a>) -> Result<[<$name Name>], crate::parser::ParserError> {
+                // Try to peek keywords corresponding to the option name.
+                $(if parser.peek_simple_option_name(stringify!($option)) {
+                    return Ok([<$name Name>]::[<$option:camel>])
+                })*
+                // If none of the if statements above match, return an error.
+                {
+                    Err(parser.error(parser.peek_pos(), "a valid option name".to_string()))
                 }
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-            pub struct $name<T: AstInfo> {
+            pub struct $name<T: crate::ast::AstInfo> {
                 pub name: [<$name Name>],
                 pub value: Option<WithOptionValue<T>>,
             }
 
-            impl<T: AstInfo> AstDisplay for $name<T> {
-                fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+            impl<T: crate::ast::AstInfo> crate::ast::display::AstDisplay for $name<T> {
+                fn fmt<W: fmt::Write>(&self, f: &mut crate::ast::display::AstFormatter<W>) {
                     f.write_node(&self.name);
                     if let Some(v) = &self.value {
                         f.write_str(" = ");
@@ -3101,22 +3116,22 @@ impl_simple_options!(ExplainPlanOption {
     arity,
     cardinality,
     column_names,
-    join_impls,
-    humanized_exprs,
+    filter_pushdown,
+    humanized_expressions,
+    join_implementations,
     keys,
     linear_chains,
     non_negative,
     no_fast_path,
     no_notices,
-    node_ids,
-    raw,
+    node_identifiers,
     raw_plans,
     raw_syntax,
+    raw, // Listed after the `raw_~` variants to keep the parser happy!
     redacted,
     subtree_size,
     timing,
     types,
-    filter_pushdown,
     enable_new_outer_join_lowering,
     enable_eager_delta_joins,
 });

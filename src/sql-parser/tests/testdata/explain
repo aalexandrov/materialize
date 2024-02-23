@@ -64,11 +64,11 @@ EXPLAIN DECORRELATED PLAN WITH (types) AS TEXT FOR SELECT 665
 ExplainPlan(ExplainPlanStatement { stage: DecorrelatedPlan, with_options: [ExplainPlanOption { name: Types, value: None }], format: Text, explainee: Select(SelectStatement { query: Query { ctes: Simple([]), body: Select(Select { distinct: None, projection: [Expr { expr: Value(Number("665")), alias: None }], from: [], selection: None, group_by: [], having: None, options: [] }), order_by: [], limit: None, offset: None }, as_of: None }, false) })
 
 parse-statement
-EXPLAIN OPTIMIZED PLAN WITH (types = true, enable_eager_delta_joins = false) FOR SELECT 665
+EXPLAIN OPTIMIZED PLAN WITH (types = true, enable eager delta joins = false) FOR SELECT 665
 
 ---
 
-EXPLAIN OPTIMIZED PLAN WITH (types = true, enable_eager_delta_joins = false) AS TEXT FOR SELECT 665
+EXPLAIN OPTIMIZED PLAN WITH (types = true, enable eager delta joins = false) AS TEXT FOR SELECT 665
 =>
 ExplainPlan(ExplainPlanStatement { stage: OptimizedPlan, with_options: [ExplainPlanOption { name: Types, value: Some(Value(Boolean(true))) }, ExplainPlanOption { name: EnableEagerDeltaJoins, value: Some(Value(Boolean(false))) }], format: Text, explainee: Select(SelectStatement { query: Query { ctes: Simple([]), body: Select(Select { distinct: None, projection: [Expr { expr: Value(Number("665")), alias: None }], from: [], selection: None, group_by: [], having: None, options: [] }), order_by: [], limit: None, offset: None }, as_of: None }, false) })
 

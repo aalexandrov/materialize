@@ -1541,9 +1541,9 @@ CREATE CLUSTER cluster (SIZE '1')
 CreateCluster(CreateClusterStatement { name: Ident("cluster"), options: [ClusterOption { name: Size, value: Some(Value(String("1"))) }], features: [] })
 
 parse-statement
-CREATE CLUSTER cluster (SIZE '1') FEATURES (enable_eager_delta_joins = true)
+CREATE CLUSTER cluster (SIZE '1') FEATURES (enable eager delta joins = true)
 ----
-CREATE CLUSTER cluster (SIZE '1') FEATURES (enable_eager_delta_joins = true)
+CREATE CLUSTER cluster (SIZE '1') FEATURES (ENABLE EAGER DELTA JOINS = true)
 =>
 CreateCluster(CreateClusterStatement { name: Ident("cluster"), options: [ClusterOption { name: Size, value: Some(Value(String("1"))) }], features: [ClusterFeature { name: EnableEagerDeltaJoins, value: Some(Value(Boolean(true))) }] })
 

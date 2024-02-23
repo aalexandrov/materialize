@@ -7,7 +7,7 @@
 # the Business Source License, use of this software will be governed
 # by the Apache License, Version 2.0.
 
-# Test the ability to catch plan changes using the `enable_eager_delta_joins`
+# Test the ability to catch plan changes using the `enable eager delta joins`
 # config flag in EXPLAIN. This test can be deleted when the feature flag is
 # removed.
 
@@ -18,4 +18,4 @@ mode cockroach
 
 # Regular users cannot create clusters with FEATUERS yet.
 statement error db error: ERROR: FEATURES not supported for non\-system users
-CREATE CLUSTER foo SIZE = '1' FEATURES (enable_eager_delta_joins = true);
+CREATE CLUSTER foo SIZE = '1' FEATURES (enable eager delta joins = true);
