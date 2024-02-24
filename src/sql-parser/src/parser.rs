@@ -275,7 +275,7 @@ impl From<Keyword> for Ident {
 }
 
 /// SQL Parser
-pub(crate) struct Parser<'a> {
+struct Parser<'a> {
     sql: &'a str,
     tokens: Vec<PosToken>,
     /// The index of the first unprocessed token in `self.tokens`
@@ -321,7 +321,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn error(&self, pos: usize, message: String) -> ParserError {
+    fn error(&self, pos: usize, message: String) -> ParserError {
         ParserError { pos, message }
     }
 
@@ -1531,26 +1531,6 @@ impl<'a> Parser<'a> {
         true
     }
 
-    pub(crate) fn peek_simple_option_name(&mut self, option_name: &str) -> bool {
-        let mut n = 0; // Number of tokens to consume on successful match.
-        for (i, expected_token) in option_name.split('_').enumerate() {
-            match self.peek_nth_token(i) {
-                Some(Token::Keyword(k)) => {
-                    if k.as_str().eq_ignore_ascii_case(expected_token) {
-                        n += 1;
-                    } else {
-                        return false;
-                    }
-                }
-                _ => return false,
-            }
-        }
-        for _ in 0..n {
-            self.next_token().expect("valid token");
-        }
-        true
-    }
-
     fn peek_one_of_keywords(&mut self, kws: &[Keyword]) -> bool {
         match self.peek_token() {
             Some(Token::Keyword(k)) => kws.contains(&k),
@@ -1584,7 +1564,7 @@ impl<'a> Parser<'a> {
 
     /// Return the byte position within the query string at which the
     /// next token starts.
-    pub(crate) fn peek_pos(&self) -> usize {
+    fn peek_pos(&self) -> usize {
         match self.tokens.get(self.index) {
             Some(token) => token.offset,
             None => self.sql.len(),
@@ -1605,7 +1585,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Report unexpected token
-    pub(crate) fn expected<D, T>(
+    fn expected<D, T>(
         &self,
         pos: usize,
         expected: D,
@@ -3747,7 +3727,7 @@ impl<'a> Parser<'a> {
 
     fn parse_cluster_feature(&mut self) -> Result<ClusterFeature<Raw>, ParserError> {
         Ok(ClusterFeature {
-            name: parse_cluster_feature_name(self).map_err(|err| {
+            name: self.parse_cluster_feature_name().map_err(|err| {
                 let msg = "a valid CREATE CLUSTER feature";
                 self.error(err.pos, msg.to_string())
             })?,
@@ -7406,7 +7386,7 @@ impl<'a> Parser<'a> {
             // We are using identifiers here because otherwise we need to register
             // all `mz_repr::explain::ExplainConfig` fields (such as `join_impls`)
             // as keywords in `keywords.txt`.
-            name: parse_explain_plan_option_name(self).map_err(|err| {
+            name: self.parse_explain_plan_option_name().map_err(|err| {
                 let msg = "a valid `EXPLAIN` option";
                 self.error(err.pos, msg.to_string())
             })?,
@@ -8336,3 +8316,7 @@ impl ParenthesizedFragment {
         }
     }
 }
+
+// Include the `Parser::parse_~` implementations for simple options derived by
+// the crate's build.rs script.
+include!(concat!(env!("OUT_DIR"), "/parse.simple_options.rs"));

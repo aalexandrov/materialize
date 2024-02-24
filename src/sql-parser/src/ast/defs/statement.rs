@@ -34,71 +34,6 @@ use crate::ast::{
     UnresolvedSchemaName, Value,
 };
 
-/// A macro for generating options that are parsed as `<ident> = <value>` pairs.
-///
-/// Expected syntax:
-///
-/// ```ignore
-/// impl_simple_options!(Foo {
-///     my_option,
-///     my_other_options,
-/// })
-/// ```
-///
-/// The $name should be a valid ASCII CamelCase string.
-/// The $option values must be valid ASCII snake_case strings.
-///
-/// Note: the macro is not very hygienic at the moment because it is only meant
-/// to be used in this module.
-macro_rules! impl_simple_options {
-    ($name:ident { $($option:ident,)* }) => {
-        paste::paste! {
-            #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-            pub enum [<$name Name>] {
-                $([<$option:camel>],)*
-            }
-
-            impl crate::ast::display::AstDisplay for [<$name Name>] {
-                fn fmt<W: fmt::Write>(&self, f: &mut crate::ast::display::AstFormatter<W>) {
-                    match self {
-                        $(Self::[<$option:camel>] => {
-                            let tokens = stringify!($option).replace("_", " ");
-                            f.write_str(tokens.to_ascii_uppercase())
-                        },)*
-                    }
-                }
-            }
-
-            pub(crate) fn [<parse_ $name:snake _name>]<'a>(parser: &mut crate::parser::Parser<'a>) -> Result<[<$name Name>], crate::parser::ParserError> {
-                // Try to peek keywords corresponding to the option name.
-                $(if parser.peek_simple_option_name(stringify!($option)) {
-                    return Ok([<$name Name>]::[<$option:camel>])
-                })*
-                // If none of the if statements above match, return an error.
-                {
-                    Err(parser.error(parser.peek_pos(), "a valid option name".to_string()))
-                }
-            }
-
-            #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-            pub struct $name<T: crate::ast::AstInfo> {
-                pub name: [<$name Name>],
-                pub value: Option<WithOptionValue<T>>,
-            }
-
-            impl<T: crate::ast::AstInfo> crate::ast::display::AstDisplay for $name<T> {
-                fn fmt<W: fmt::Write>(&self, f: &mut crate::ast::display::AstFormatter<W>) {
-                    f.write_node(&self.name);
-                    if let Some(v) = &self.value {
-                        f.write_str(" = ");
-                        f.write_node(v);
-                    }
-                }
-            }
-        }
-    };
-}
-
 /// A top-level statement (SELECT, INSERT, CREATE, etc.)
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EnumKind)]
@@ -1790,10 +1725,29 @@ impl<T: AstInfo> AstDisplay for ClusterOption<T> {
     }
 }
 
-impl_simple_options!(ClusterFeature {
-    enable_new_outer_join_lowering,
-    enable_eager_delta_joins,
-});
+// Note: the `AstDisplay` implementation and `Parser::parse_` method for this
+// enum are generated automatically by this crate's `build.rs`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ClusterFeatureName {
+    EnableNewOuterJoinLowering,
+    EnableEagerDeltaJoins,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ClusterFeature<T: AstInfo> {
+    pub name: ClusterFeatureName,
+    pub value: Option<WithOptionValue<T>>,
+}
+
+impl<T: AstInfo> AstDisplay for ClusterFeature<T> {
+    fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+        f.write_node(&self.name);
+        if let Some(v) = &self.value {
+            f.write_str(" = ");
+            f.write_node(v);
+        }
+    }
+}
 
 /// `CREATE CLUSTER ..`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3112,29 +3066,48 @@ impl<T: AstInfo> AstDisplay for ExplainPlanStatement<T> {
 }
 impl_display_t!(ExplainPlanStatement);
 
-impl_simple_options!(ExplainPlanOption {
-    arity,
-    cardinality,
-    column_names,
-    filter_pushdown,
-    humanized_expressions,
-    join_implementations,
-    keys,
-    linear_chains,
-    non_negative,
-    no_fast_path,
-    no_notices,
-    node_identifiers,
-    raw_plans,
-    raw_syntax,
-    raw, // Listed after the `raw_~` variants to keep the parser happy!
-    redacted,
-    subtree_size,
-    timing,
-    types,
-    enable_new_outer_join_lowering,
-    enable_eager_delta_joins,
-});
+// Note: the `AstDisplay` implementation and `Parser::parse_` method for this
+// enum are generated automatically by this crate's `build.rs`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ExplainPlanOptionName {
+    Arity,
+    Cardinality,
+    ColumnNames,
+    FilterPushdown,
+    HumanizedExpressions,
+    JoinImplementations,
+    Keys,
+    LinearChains,
+    NonNegative,
+    NoFastPath,
+    NoNotices,
+    NodeIdentifiers,
+    RawPlans,
+    RawSyntax,
+    Raw, // Listed after the `Raw~` variants to keep the parser happy!
+    Redacted,
+    SubtreeSize,
+    Timing,
+    Types,
+    EnableNewOuterJoinLowering,
+    EnableEagerDeltaJoins,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ExplainPlanOption<T: AstInfo> {
+    pub name: ExplainPlanOptionName,
+    pub value: Option<WithOptionValue<T>>,
+}
+
+impl<T: AstInfo> AstDisplay for ExplainPlanOption<T> {
+    fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>) {
+        f.write_node(&self.name);
+        if let Some(v) = &self.value {
+            f.write_str(" = ");
+            f.write_node(v);
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExplainSinkSchemaFor {
@@ -4529,3 +4502,7 @@ impl<T: AstInfo> AstDisplay for CommentObjectType<T> {
 }
 
 impl_display_t!(CommentObjectType);
+
+// Include the `AstDisplay` implementations for simple options derived by the
+// crate's build.rs script.
+include!(concat!(env!("OUT_DIR"), "/display.simple_options.rs"));

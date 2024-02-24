@@ -13,13 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
 use std::path::PathBuf;
 use std::{env, fs};
 
-use anyhow::{anyhow, Context, Result};
-use syn::spanned::Spanned;
-use syn::{DeriveInput, Item};
+use anyhow::{Context, Result};
 
 const AST_DEFS_MOD: &str = "src/ast/defs.rs";
 
@@ -28,9 +25,7 @@ fn main() -> Result<()> {
 
     // Generate AST visitors.
     {
-        let mut items = mz_walkabout::parse_mod(AST_DEFS_MOD)?;
-        collect_macros(AST_DEFS_MOD, &mut items)?;
-        let ir = mz_walkabout::analyze(&items)?;
+        let ir = mz_walkabout::load(AST_DEFS_MOD)?;
         let fold = mz_walkabout::gen_fold(&ir);
         let visit = mz_walkabout::gen_visit(&ir);
         let visit_mut = mz_walkabout::gen_visit_mut(&ir);
@@ -38,211 +33,164 @@ fn main() -> Result<()> {
         fs::write(out_dir.join("visit.rs"), visit)?;
         fs::write(out_dir.join("visit_mut.rs"), visit_mut)?;
     }
+    // Generate derived items for AST types modelling simple options.
+    {
+        let defs = simple_options::load(AST_DEFS_MOD)?;
+        // Generate `Parser` methods.
+        let parse = simple_options::gen_parse(&defs);
+        println!("DEBUG:\n{parse}");
+        fs::write(out_dir.join("parse.simple_options.rs"), parse)?;
+        // Generate `AstDisplay` implementations.
+        let display = simple_options::gen_display(&defs);
+        fs::write(out_dir.join("display.simple_options.rs"), display)?;
+    }
 
     Ok(())
 }
 
-/// Extend the set of items identified by the crate-agnosic pass (the
-/// [`mz_walkabout::parse_mod`] call) with items corresponding to simulated
-/// expanded macros specific to this crate.
-///
-/// We currently support correct waklabout structures generation for AST items
-/// defined by the following macro calls:
-///
-/// - `impl_simple_options!(...)` - handled by [`expand_impl_simple_options`].
-fn collect_macros<P>(path: P, out: &mut Vec<DeriveInput>) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let dir = path.parent().expect("missing parent directory");
-    let stem = path
-        .file_stem()
-        .expect("missing file stem")
-        .to_str()
-        .expect("file stem is not valid UTF-8");
+mod simple_options {
+    use std::collections::BTreeSet;
+    use std::fs;
+    use std::path::{Path, PathBuf};
 
-    let src =
-        fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?;
-    let file =
-        syn::parse_file(&src).with_context(|| format!("Failed to parse {}", path.display()))?;
+    use anyhow::{Context, Result};
+    use syn::{Data, DataEnum, DeriveInput, Ident, Item};
 
-    for item in file.items {
-        match item {
-            Item::Mod(item) if item.content.is_none() => {
-                let path = match stem {
-                    "mod" | "lib" => dir.join(format!("{}.rs", item.ident)),
-                    _ => dir.join(format!("{}/{}.rs", stem, item.ident)),
-                };
-                collect_macros(path, out)?;
-            }
-            Item::Macro(item) => {
-                for derive_input in expand_impl_simple_options(item)? {
-                    out.push(derive_input)
+    use mz_ore::codegen::CodegenBuf;
+
+    // TODO: we identify enums using an attribute
+    const SIMPLE_OPTION_ENUMS: [&'static str; 2] = ["ExplainPlanOptionName", "ClusterFeatureName"];
+
+    /// Load enum items for which to generate code.
+    pub(super) fn load<P>(path: P) -> Result<Vec<DeriveInput>>
+    where
+        P: AsRef<Path>,
+    {
+        let mut todo = vec![PathBuf::from(path.as_ref())];
+        let mut done = BTreeSet::new();
+        let mut result = Vec::new();
+
+        fn is_simple_option_enum(ident: &Ident) -> bool {
+            SIMPLE_OPTION_ENUMS.iter().any(|x| ident == x)
+        }
+
+        while let Some(path) = todo.pop() {
+            let dir = path.parent().expect("missing parent directory");
+            let stem = path
+                .file_stem()
+                .expect("missing file stem")
+                .to_str()
+                .expect("file stem is not valid UTF-8");
+
+            let src = fs::read_to_string(&path)
+                .with_context(|| format!("Failed to read {}", path.display()))?;
+            let file = syn::parse_file(&src)
+                .with_context(|| format!("Failed to parse {}", path.display()))?;
+
+            for item in file.items {
+                match item {
+                    Item::Mod(item) if item.content.is_none() => {
+                        let path = match stem {
+                            "mod" | "lib" => dir.join(format!("{}.rs", item.ident)),
+                            _ => dir.join(format!("{}/{}.rs", stem, item.ident)),
+                        };
+                        if !done.contains(&path) {
+                            todo.push(path);
+                        }
+                    }
+                    Item::Enum(item) if is_simple_option_enum(&item.ident) => {
+                        result.push(DeriveInput {
+                            ident: item.ident,
+                            vis: item.vis,
+                            attrs: item.attrs,
+                            generics: item.generics,
+                            data: Data::Enum(DataEnum {
+                                enum_token: item.enum_token,
+                                brace_token: item.brace_token,
+                                variants: item.variants,
+                            }),
+                        });
+                    }
+                    _ => (),
                 }
             }
-            _ => (),
+
+            assert_eq!(done.insert(path), true);
         }
-    }
-    Ok(())
-}
 
-/// Because `{MACRO_NAME}` generates some structs that should be
-/// considered part of the collected items, we need to manually derive the
-/// inputs that the macro expansion is going to produce here.
-///
-/// The method receives a [`syn::ItemMacro`] item. If the item corresponds to a
-///
-/// ```ignore
-/// impl_simple_options!($name {
-///    $option1,
-///    $option2,
-/// });
-/// ```
-/// call, the result will be a vector consisting of the [`syn::DeriveInput`]
-/// items that will be generated by the macro expansion. For all other
-/// [`syn::ItemMacro`] items, the result is going to be the empty vector.
-///
-/// The function will error if the macro invocation does not follow the expected
-/// format (which should never happen as long as the implementation below is
-/// kept in sync with the syntax supported by the `{MACRO_NAME}` macro
-/// rules).
-fn expand_impl_simple_options(item: syn::ItemMacro) -> Result<Vec<syn::DeriveInput>> {
-    use proc_macro2::{Delimiter, TokenTree};
-
-    const MACRO_NAME: &str = "impl_simple_options";
-
-    let item_span = item.span();
-
-    // Macro::path must match the following fragment:
-    // ```
-    // Path {
-    //     segments: [
-    //         PathSegment {
-    //             ident: Ident {
-    //                 sym: MACRO_NAME,
-    //                 ..
-    //             },
-    //             ..
-    //         },
-    //     ],
-    //     ..
-    // }
-    // ```
-    if item.mac.path.segments.len() != 1 {
-        return Ok(Vec::new());
-    }
-    let Some(path_segment) = item.mac.path.segments.first() else {
-        return Ok(Vec::new());
-    };
-    if path_segment.ident != MACRO_NAME {
-        return Ok(Vec::new());
+        Ok(result)
     }
 
-    // Macro::tokens must match the following TokenStream:
-    // ```
-    // $name {
-    //    $option1,
-    //    $option2,
-    // }
-    // ```
-    let mut tokens = item.mac.tokens.into_iter();
-    let Some(TokenTree::Ident(name)) = tokens.next() else {
-        return Err(anyhow!(
-            "unsupported macro parameter format in `{MACRO_NAME}`: \
-             expected $name identifier"
-        ));
-    };
-    let Some(TokenTree::Group(options_group)) = tokens.next() else {
-        return Err(anyhow!(
-            "unsupported macro parameter format in `{MACRO_NAME}`: \
-             expected options group"
-        ));
-    };
-    if options_group.delimiter() != Delimiter::Brace {
-        return Err(anyhow!(
-            "unsupported macro parameter format in `{MACRO_NAME}`: \
-             expected options group delimiter"
-        ));
-    }
-    let mut options = Vec::<syn::Ident>::with_capacity(10);
-    for (token_no, token) in options_group.stream().into_iter().enumerate() {
-        match (token_no % 2, token) {
-            (0, TokenTree::Ident(ident)) if ident.to_string().is_ascii() => {
-                options.push(ident) // Odd tokens should be ASCII idents representing options.
-            }
-            (1, TokenTree::Punct(punct)) if punct.as_char() == ',' => {
-                // Even tokens should be the `,` separator.
-            }
-            _ => {
-                return Err(anyhow!(
-                    "unsupported macro parameter format in `{MACRO_NAME}`: \
-                     unexpected token in options group"
-                ));
+    pub(super) fn gen_display(items: &[DeriveInput]) -> String {
+        let mut buf = CodegenBuf::new();
+        for item in items {
+            if let Data::Enum(enum_item) = &item.data {
+                write_ast_display(&item.ident, enum_item, &mut buf)
             }
         }
+        buf.into_string()
     }
 
-    // Compute the derived syntax parts used by the expanded macro.
-    let enum_name = syn::Ident::new(format!("{name}Name").as_str(), name.span());
-    let enum_variants = options.into_iter().map(camel_case);
+    fn write_ast_display(ident: &Ident, enum_item: &DataEnum, buf: &mut CodegenBuf) {
+        let typ = ident.to_string();
+        let fn_fmt = "fn fmt<W: fmt::Write>(&self, f: &mut AstFormatter<W>)";
 
-    // The DeriveInput synthesized here should coincide with the one that is
-    // actually expanded by the macro.
-    let Ok(option_name_enum) = syn::parse2::<syn::DeriveInput>(quote::quote_spanned! {item_span=>
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        pub enum #enum_name {
-            #(#enum_variants),*
-        }
-    }) else {
-        return Err(anyhow!(format!(
-            "internal error in `expand_{MACRO_NAME}`: \
-             while constructing {enum_name} enum"
-        )));
-    };
+        buf.write_block(format!("impl AstDisplay for {typ}"), |buf| {
+            buf.write_block(fn_fmt, |buf| {
+                buf.write_block("match self", |buf| {
+                    for v in enum_item.variants.iter().map(|v| v.ident.to_string()) {
+                        let ts = separate_tokens(&v, ' ').to_uppercase();
+                        buf.writeln(format!(r#"Self::{v} => f.write_str("{ts}"),"#));
+                    }
+                });
+            });
+        });
+        buf.end_line();
+    }
 
-    // The DeriveInput synthesized here should coincide with the one that is
-    // actually expanded by the macro.
-    let Ok(struct_input) = syn::parse2::<syn::DeriveInput>(quote::quote_spanned! {item_span=>
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        pub struct #name<T: AstInfo> {
-            pub name: #enum_name,
-            pub value: Option<WithOptionValue<T>>,
-        }
-    }) else {
-        return Err(anyhow!(format!(
-            "internal error in `expand_{MACRO_NAME}`: \
-             while constructing {name} struct"
-        )));
-    };
-
-    Ok(Vec::from([option_name_enum, struct_input]))
-}
-
-/// Convert an identifier from snake case to camel case.
-///
-/// The source code is taken from the `paste` crate[^source], which used in the
-/// implementation of the `impl_simple_options` macro.
-///
-/// [^source]: <https://github.com/dtolnay/paste/blob/ed844dc6fe755bcee881bd93cdff5a77038aa49b/src/segment.rs#L195-L215>
-fn camel_case(ident: syn::Ident) -> syn::Ident {
-    let mut camel_case = String::new();
-    let mut prev = '_';
-    for ch in ident.to_string().chars() {
-        if ch != '_' {
-            if prev == '_' {
-                for chu in ch.to_uppercase() {
-                    camel_case.push(chu);
+    pub(super) fn gen_parse(items: &[DeriveInput]) -> String {
+        let mut buf = CodegenBuf::new();
+        buf.write_block("impl<'a> Parser<'a>", |mut buf| {
+            for item in items {
+                if let Data::Enum(enum_item) = &item.data {
+                    write_fn_parse(&item.ident, enum_item, &mut buf)
                 }
-            } else if prev.is_uppercase() {
-                for chl in ch.to_lowercase() {
-                    camel_case.push(chl);
-                }
-            } else {
-                camel_case.push(ch);
             }
-        }
-        prev = ch;
+        });
+        buf.into_string()
     }
-    syn::Ident::new(camel_case.as_str(), ident.span())
+
+    fn write_fn_parse(ident: &Ident, enum_item: &DataEnum, buf: &mut CodegenBuf) {
+        let typ = ident.to_string();
+        let msg = separate_tokens(&typ, ' ').to_lowercase();
+        let fn_name = format!("parse_{}", separate_tokens(&typ, '_').to_lowercase());
+        let fn_type = format!("Result<{typ}, ParserError>");
+
+        buf.write_block(format!("fn {fn_name}(&mut self) -> {fn_type}"), |b| {
+            for v in enum_item.variants.iter().map(|v| v.ident.to_string()) {
+                let kws = separate_tokens(&v, ',').to_uppercase();
+                b.write_block(format!("if self.parse_keywords(&[{kws}])"), |buf| {
+                    buf.writeln(format!(r#"return Ok({typ}::{v})"#));
+                });
+            }
+            b.write_block("", |b| {
+                b.writeln(format!(r#"let msg = "a valid {msg}".to_string();"#));
+                b.writeln(format!(r#"Err(self.error(self.peek_pos(), msg))"#));
+            });
+        });
+        buf.end_line();
+    }
+
+    fn separate_tokens(name: &str, sep: char) -> String {
+        let mut buf = String::new();
+        let mut prev = sep;
+        for ch in name.chars() {
+            if ch.is_uppercase() && prev != sep {
+                buf.push(sep);
+            }
+            buf.push(ch);
+            prev = ch;
+        }
+        buf
+    }
 }
