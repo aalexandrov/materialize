@@ -231,6 +231,7 @@ Linear
 List
 Load
 Local
+Locally
 Log
 Logical
 Login
