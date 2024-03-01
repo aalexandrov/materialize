@@ -15,6 +15,19 @@ import click
 import materialize.mzexplore as api
 import materialize.mzexplore.common as common
 
+
+# Summarize the duration of stages matching a pattern in a given trace path.
+def summarize_stage_duration(stage_pattern: str, trace_path: Path) -> None:
+    import json
+
+    trace = json.load(trace_path.open())
+    times = [int(e["time"]) for e in trace["list"] if stage_pattern in e["path"]]
+
+    print(f"sum_time = {sum([time for time in times])}ns")
+    print(f"min_time = {min([time for time in times])}ns")
+    print(f"max_time = {max([time for time in times])}ns")
+
+
 # import logging
 # logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
 
