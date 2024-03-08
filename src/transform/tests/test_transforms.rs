@@ -162,6 +162,11 @@ fn handle_apply(
             let transform = ColumnKnowledge::default();
             apply_transform(transform, catalog, input)
         }
+        "equivalence_propagation" => {
+            use mz_transform::equivalence_propagation::EquivalencePropagation;
+            let transform = EquivalencePropagation::default();
+            apply_transform(transform, catalog, input)
+        }
         "flatmap_to_map" => {
             use mz_transform::canonicalization::FlatMapToMap;
             let transform = FlatMapToMap;
