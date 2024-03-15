@@ -24,9 +24,6 @@ WHERE
               JOIN pk2 AS a2 ON (a1.f2 IS NOT NULL)
             WHERE
               a1.f2 + NULLIF (a1.f2, a1.f1) IS NULL
-            ORDER BY
-              1,
-              2
           )
       ) AS dt
   )
