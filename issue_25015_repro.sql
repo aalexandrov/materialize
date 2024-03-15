@@ -11,12 +11,10 @@ WHERE
       DISTINCT c2
     FROM
       (
-        SELECT
+        SELECT DISTINCT
           (a1.f1) AS c1,
           (a2.f1) AS c2,
-          (a1.f2) AS c3,
-          (MIN (a2.f2)) AS agg1,
-          (COUNT (DISTINCT NULLIF (a2.f1, a1.f2))) AS agg2
+          (a1.f2) AS c3
         FROM
           (
             SELECT
@@ -53,10 +51,6 @@ WHERE
           a2.f1 + a1.f2 = a2.f1 + a1.f2
           AND a2.f1 + a2.f2 + a2.f2 = a2.f2 + a1.f2
           AND NOT (a1.f1 IN (2, 8))
-        GROUP BY
-          1,
-          2,
-          3
       ) AS dt
   )
   AND a2.f2 IS NULL
