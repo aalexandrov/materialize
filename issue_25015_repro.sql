@@ -11,20 +11,14 @@ WHERE
       DISTINCT c2
     FROM
       (
-        SELECT DISTINCT
-          0 AS c1,
-          0 AS c2
+        SELECT
+          COUNT (DISTINCT a1.f2) AS c1,
+          COUNT (a2.f2) AS c2
         FROM
-          (
-            SELECT
-              COUNT (DISTINCT a1.f2) AS f1,
-              COUNT (a2.f2) AS f2
-            FROM
-              pk2 AS a1
-              JOIN pk2 AS a2 ON (a1.f2 IS NOT NULL)
-            WHERE
-              a1.f2 + NULLIF (a1.f2, a1.f1) IS NULL
-          )
+          pk2 AS a1
+          JOIN pk2 AS a2 ON (a1.f2 IS NOT NULL)
+        WHERE
+          a1.f2 + NULLIF (a1.f2, a1.f1) IS NULL
       ) AS dt
   )
   AND a2.f2 IS NULL
