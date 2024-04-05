@@ -187,6 +187,8 @@ pub struct ExplainConfig {
     pub redacted: bool,
     /// Show the `subtree_size` attribute in the explanation if it is supported by the backing IR.
     pub subtree_size: bool,
+    /// Print the name of the target cluster for this plan.
+    pub target_cluster: bool,
     /// Print optimization timings.
     pub timing: bool,
     /// Show the `type` attribute in the explanation.
@@ -217,6 +219,7 @@ impl Default for ExplainConfig {
             raw_plans: true,
             raw_syntax: false,
             subtree_size: false,
+            target_cluster: false,
             timing: false,
             types: false,
             features: Default::default(),
@@ -890,6 +893,7 @@ mod tests {
             raw_plans: false,
             raw_syntax: false,
             subtree_size: false,
+            target_cluster: false,
             timing: true,
             types: false,
             features: Default::default(),

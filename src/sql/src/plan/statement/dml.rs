@@ -349,6 +349,7 @@ generate_extracted_config!(
     (RawSyntax, bool, Default(false)),
     (Redacted, bool, Default(false)),
     (SubtreeSize, bool, Default(false)),
+    (TargetCluster, bool, Default(false)),
     (Timing, bool, Default(false)),
     (Types, bool, Default(false)),
     (ReoptimizeImportedViews, Option<bool>, Default(None)),
@@ -393,6 +394,7 @@ impl TryFrom<ExplainPlanOptionExtracted> for ExplainConfig {
             raw_syntax: v.raw_syntax,
             redacted: v.redacted,
             subtree_size: v.subtree_size,
+            target_cluster: v.target_cluster,
             timing: v.timing,
             types: v.types,
             features: OptimizerFeatureOverrides {

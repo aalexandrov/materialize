@@ -3217,6 +3217,7 @@ pub enum ExplainPlanOptionName {
     Raw, // Listed after the `Raw~` variants to keep the parser happy!
     Redacted,
     SubtreeSize,
+    TargetCluster,
     Timing,
     Types,
     ReoptimizeImportedViews,
@@ -3251,6 +3252,7 @@ impl WithOptionName for ExplainPlanOptionName {
             | Self::Raw
             | Self::Redacted
             | Self::SubtreeSize
+            | Self::TargetCluster
             | Self::Timing
             | Self::Types
             | Self::ReoptimizeImportedViews
