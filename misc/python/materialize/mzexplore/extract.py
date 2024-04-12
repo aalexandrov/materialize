@@ -429,19 +429,18 @@ def arrangement_sizes(
                     # Ensure that the parent folder exists.
                     (target / csv_file.folder()).mkdir(parents=True, exist_ok=True)
 
-                    # Write CSV to the output file.
-                    with (target / csv_file.path()).open("w") as file:
-                        df.to_csv(file, index=False, quoting=csv.QUOTE_MINIMAL)
+                    float_format = lambda x: f"{x:_.3f}"
+                    with pd.option_context("display.float_format", float_format):
+                        print(df.to_string())
+                        # Write CSV to the output file.
+                        with (target / csv_file.path()).open("w") as file:
+                            df.to_csv(file, index=False, quoting=csv.QUOTE_MINIMAL)
 
-                    if print_results:  # Print results if requested.
-                        float_format = lambda x: f"{x:_.3f}"
-                        with pd.option_context("display.float_format", float_format):
-                            print(df.to_string())
-
-                        # Write DataFrame string to the output file.
-                        txt_file = dataclasses.replace(csv_file, ext="txt")
-                        with (target / txt_file.path()).open("w") as file:
-                            file.write(df.to_string())
+                        if print_results:  # Print results if requested.
+                            # Write DataFrame string to the output file.
+                            txt_file = dataclasses.replace(csv_file, ext="txt")
+                            with (target / txt_file.path()).open("w") as file:
+                                file.write(df.to_string())
 
                 except DatabaseError as e:
                     warn(
