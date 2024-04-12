@@ -85,24 +85,22 @@ class Database:
         system: bool = False,
     ) -> DictGenerator:
         p = resource_path("catalog/s_items.sql" if system else "catalog/u_items.sql")
-        q = parse_query(p)
-        yield from self.query_all(
-            q.format(
-                database="'%'" if database is None else literal(database),
-                schema="'%'" if schema is None else literal(schema),
-                name="'%'" if name is None else literal(name),
-            )
+        q = parse_query(p).format(
+            database="'%'" if database is None else literal(database),
+            schema="'%'" if schema is None else literal(schema),
+            name="'%'" if name is None else literal(name),
         )
+        # Auto-routed to `mz_introspection`.
+        yield from self.query_all(q)
 
     def object_clusters(
         self,
         object_ids: list[str],
     ) -> DictGenerator:
         p = resource_path("catalog/u_object_clusters.sql")
-        q = parse_query(p)
-        yield from self.query_all(
-            q.format(object_ids=", ".join(map(literal, object_ids)))
-        )
+        q = parse_query(p).format(object_ids=", ".join(map(literal, object_ids)))
+        # Auto-routed to `mz_introspection`.
+        yield from self.query_all(q)
 
     def clone_dependencies(
         self,
@@ -110,18 +108,18 @@ class Database:
         cluster_id: str,
     ) -> DictGenerator:
         p = resource_path("catalog/u_clone_dependencies.sql")
-        q = parse_query(p)
-        yield from self.query_all(
-            q.format(
-                source_ids=", ".join(map(literal, source_ids)),
-                cluster_id=literal(cluster_id),
-            )
+        q = parse_query(p).format(
+            source_ids=", ".join(map(literal, source_ids)),
+            cluster_id=literal(cluster_id),
         )
+        # Auto-routed to `mz_introspection`.
+        yield from self.query_all(q)
 
     def arrangement_sizes(self, id: str) -> DictGenerator:
         p = resource_path("catalog/u_arrangement_sizes.sql")
-        q = parse_query(p)
-        yield from self.query_all(q.format(id=literal(id)))
+        q = parse_query(p).format(id=literal(id))
+        # Returns results for the current (cluster, cluster_replica).
+        yield from self.query_all(q)
 
 
 @contextlib.contextmanager
