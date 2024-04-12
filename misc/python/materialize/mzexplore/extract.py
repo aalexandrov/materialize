@@ -381,6 +381,11 @@ def arrangement_sizes(
         # Extract materialized view definitions
         # -------------------------------------
 
+        # Pre-fetch catalog-items before calling `sql.update_environment` below
+        # in order to ensure that auto-routing will send the query to the
+        # `mz_introspection` cluster.
+        catalog_items = db.catalog_items(database, schema, name, system=False)
+
         with sql.update_environment(
             db,
             env=dict(
@@ -388,7 +393,7 @@ def arrangement_sizes(
                 cluster_replica=cluster_replica,
             ),
         ) as db:
-            for item in db.catalog_items(database, schema, name, system=False):
+            for item in catalog_items:
                 item_database = sql.identifier(item["database"])
                 item_schema = sql.identifier(item["schema"])
                 item_name = sql.identifier(item["name"])
