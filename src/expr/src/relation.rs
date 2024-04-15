@@ -16,12 +16,13 @@ use std::fmt::{Display, Formatter};
 use std::num::{NonZeroU64, NonZeroUsize};
 
 use bytesize::ByteSize;
-use itertools::Itertools;
+use itertools::{chain, zip_eq, Itertools};
 use mz_lowertest::MzReflect;
 use mz_ore::cast::CastFrom;
 use mz_ore::collections::CollectionExt;
 use mz_ore::id_gen::IdGen;
 use mz_ore::num::NonNeg;
+use mz_ore::soft_panic_or_log;
 use mz_ore::stack::RecursionLimitError;
 use mz_ore::str::Indent;
 use mz_proto::{IntoRustIfSome, ProtoType, RustType, TryFromProtoError};
@@ -798,41 +799,50 @@ impl MirRelationExpr {
                 input
             }
             Join { equivalences, .. } => {
-                // The keys of a cross join are the Cartesian product of the keys of each input,
-                // with columns adjusted appropriately to account for their new positionts.
+                // The keys of a cross join are the Cartesian product of the
+                // keys of each input, with columns adjusted appropriately to
+                // account for their new positionts.
                 //
                 // When subjected to equivalences, two things happen:
-                // 1. The distinct unique keys increase by substitution through each equivalence.
-                //    If we join A and B with columns (pka, fkb) and (pkb, b2) on fkb = pkb,
-                //    where pka and pkb are unique keys, then (pka, fkb) also becomes a unique key.
-                // 2. The presence of functional dependences can reduce some unique keys.
-                //    In the above example, pka functionally determines fkb, and the (pka, fkb)
-                //    unique key can be reduced to just pka.
+                // 1. The distinct unique keys increase by substitution through
+                //    each equivalence. If we join A and B with columns (pka,
+                //    fkb) and (pkb, b2) on fkb = pkb, where pka and pkb are
+                //    unique keys, then (pka, fkb) also becomes a unique key.
+                // 2. The presence of functional dependences can reduce some
+                //    unique keys. In the above example, pka functionally
+                //    determines fkb, and the (pka, fkb) unique key can be
+                //    reduced to just pka.
                 //
-                // The number of unique keys may grow substiantially, and we should take care not
-                // to simply explode with too much information. In the future, we should maintain
-                // unique keys modulo equivalence and modulo functional dependencies.
+                // The number of unique keys may grow substiantially, and we
+                // should take care not to simply explode with too much
+                // information. In the future, we should maintain unique keys
+                // modulo equivalence and modulo functional dependencies.
 
                 let input_arities = input_arities.collect::<Vec<_>>();
                 let input_keys = input_keys.collect::<Vec<_>>();
 
-                // We first extract from `equivalences` columns equated to other expressions, noting
-                // for each the smallest (over equated expressions) greatest element of the support.
-                // For example, for literals this is `None` (the smallest), for column references it
-                // is the column itself, and for expressions it is the maximum column referenced by
-                // the expression.
-                // We can prune from keys any columns equated to expressions with support drawn from
-                // strictly prior inputs.
+                // We first extract from `equivalences` columns equated to other
+                // expressions, noting for each equivalence `class` its`min_sup`
+                // - the smallest among the greatest supports of all equivalent
+                // expressions `e`.
+                //
+                // For example, for literals this is `None` (the smallest), for
+                // column references it is the column itself, and for
+                // expressions it is the maximum column referenced by the
+                // expression.
+                //
+                // We can prune from `keys` any columns equated to expressions
+                // with support drawn from strictly prior inputs.
                 let mut replace = BTreeMap::new();
                 for class in equivalences.iter() {
-                    if let Some(min_sup) = class
+                    if let Some(min_max_sup) = class
                         .iter()
                         .map(|e| e.support().iter().cloned().max())
                         .min()
                     {
                         for expr in class.iter() {
                             if let MirScalarExpr::Column(c) = expr {
-                                replace.insert(c, min_sup);
+                                replace.insert(c, min_max_sup);
                             }
                         }
                     }
@@ -843,70 +853,96 @@ impl MirRelationExpr {
                 let mut arity_so_far = 0;
 
                 // Move through each input, expanding and reducing the key sets.
-                for (mut keys, arity) in input_keys
-                    .iter()
-                    .map(|x| (*x).clone())
-                    .zip_eq(input_arities.iter())
-                {
-                    let mut new_keys = Vec::with_capacity(keys_so_far.len());
+                for (mut keys, (no, arity)) in zip_eq(
+                    input_keys.iter().map(|keys| (*keys).clone()),
+                    input_arities.iter().enumerate(),
+                ) {
                     // Take the product of each key so far with each new key.
                     // Each key in keys can have columns removed if either they
                     // are equated to literals, or to an expression with support
                     // strictly less than `arity_so_far`.
-                    // In some cases this may result in the `[]` key, which means
-                    // that we "retain" the unique keys when we join in the relation.
-                    // In other cases there may be non-trivial keys with which we
-                    // must take the Cartesian product.
+                    //
+                    // In some cases this may result in the `[]` key, which
+                    // means that we "retain" the unique keys when we join in
+                    // the relation. In other cases there may be non-trivial
+                    // keys with which we must take the Cartesian product.
                     for key in keys.iter_mut() {
+                        // Translate `key` to the `Join` output schema.
                         for k in key.iter_mut() {
                             *k += arity_so_far;
                         }
                         key.retain(|c| {
-                            replace
-                                .get(c)
-                                .map(|cp| cp.map(|cpp| cpp >= arity_so_far).unwrap_or(false))
-                                .unwrap_or(true)
+                            if let Some(min_max_sup) = replace.get(c) {
+                                if let Some(min_max_sup) = min_max_sup {
+                                    // Don't retain key columns equated to
+                                    // expressions with support that is already
+                                    // fully covered by the `arity_so_far`.
+                                    *min_max_sup >= arity_so_far
+                                } else {
+                                    // Don't retain key columns equated to
+                                    // literal expressions.
+                                    false
+                                }
+                            } else {
+                                // Retain key columns not present in the
+                                // `replace` map.
+                                true
+                            }
                         });
                     }
+
                     keys.sort();
                     keys.dedup();
+
                     // TODO: Remove dominated keys from `keys`.
-                    // If `keys` contains the key with no column, we leave `keys_so_far`
-                    // as it is and increment `arity_so_far`. This is just an optimization.
-                    if !keys.contains(&Vec::new()) {
+
+                    if keys.contains(&Vec::new()) {
+                        // If `keys` contains the key with no column, we leave
+                        // `keys_so_far` as it is and increment only `arity_so_far`. This
+                        // is just an optimization.
+                        arity_so_far += arity;
+                    } else {
+                        // Otherwise, set keys_so_far to the Cartesian product
+                        // of keys_so_far and keys.
+                        let mut new_keys = Vec::with_capacity(keys_so_far.len());
+
                         for k1 in keys_so_far.iter() {
                             for k2 in keys.iter() {
                                 // NB: Our historic unique key logic only applied when k2 is [].
-                                let k1s = k1.iter().cloned();
-                                let k2s = k2.iter().cloned();
-                                new_keys.push(k1s.chain(k2s).collect::<Vec<_>>());
+                                let k3 = chain(k1.iter(), k2.iter()).cloned().collect();
+                                new_keys.push(k3);
                             }
                         }
 
                         // Update iterates and continue.
                         keys_so_far = new_keys;
+                        arity_so_far += arity;
                     }
-                    arity_so_far += arity;
+
+                    println!("keys_so_far[{no}] = {keys_so_far:?}");
                 }
 
-                let input_mapper =
-                    crate::JoinInputMapper::new_from_input_arities(input_arities.clone());
+                // Assert that the new key inference logic infers all keys
+                // inferred by the old inference logic.
                 let old_keys =
-                    input_mapper.global_keys(input_keys.clone().into_iter(), equivalences);
+                    crate::JoinInputMapper::new_from_input_arities(input_arities.clone())
+                        .global_keys(input_keys.clone().into_iter(), equivalences);
 
-                for key in old_keys.iter() {
+                for old_key in old_keys.iter() {
                     if !keys_so_far
                         .iter()
-                        .any(|key| key.iter().all(|k| key.contains(k)))
+                        .any(|new_key| new_key.iter().all(|c| old_key.contains(c)))
                     {
-                        // if !keys_so_far.contains(key) {
-                        println!("Missing key: {:?} from {:?}", key, keys_so_far);
-                        println!("INPUTKEYS: {:?}", input_keys);
-                        println!("INPUTARITIES: {:?}", input_arities);
-                        println!("EQUIVALENCES: {:?}", equivalences);
-                        panic!();
+                        soft_panic_or_log!(
+                            "Missing key: {old_key:?} from {keys_so_far:?};
+                             input_keys = {input_keys:?},
+                             input_arities = {input_arities:?},
+                             equivalences = {equivalences:?}",
+                        );
                     };
                 }
+
+                println!("-----");
 
                 keys_so_far
             }

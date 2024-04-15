@@ -23,7 +23,7 @@ use mz_transform::typecheck::TypeErrorHumanizer;
 #[cfg_attr(miri, ignore)] // can't call foreign function `rust_psm_stack_pointer` on OS `linux`
 fn run_tests() {
     // Interpret datadriven tests.
-    datadriven::walk("tests/test_transforms", |f| {
+    datadriven::walk("tests/test_transforms_wip", |f| {
         let mut catalog = TestCatalog::default();
         f.run(|test_case| -> String {
             match test_case.directive.as_str() {
