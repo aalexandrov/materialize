@@ -32,16 +32,23 @@ SERVICES = [RQG()]
 class Dataset(Enum):
     SIMPLE = 1
     DBT3 = 2
+    STAR_SCHEMA = 3
 
     def files(self) -> list[str]:
         match self:
             case Dataset.SIMPLE:
-                return ["simple.sql"]
+                return ["conf/mz/simple.sql"]
             case Dataset.DBT3:
                 # With Postgres, CREATE MATERIALZIED VIEW from dbt3-ddl.sql will produce
                 # a view thats is empty unless REFRESH MATERIALIZED VIEW from dbt3-ddl-refresh-mvs.sql
                 # is also run after the data has been loaded by dbt3-s0.0001.dump
-                return ["dbt3-ddl.sql", "dbt3-s0.0001.dump", "dbt3-ddl-refresh-mvs.sql"]
+                return [
+                    "conf/mz/dbt3-ddl.sql",
+                    "conf/mz/dbt3-s0.0001.dump",
+                    "conf/mz/dbt3-ddl-refresh-mvs.sql",
+                ]
+            case Dataset.STAR_SCHEMA:
+                return ["/workdir/datasets/star_schema.sql"]
             case _:
                 assert False
 
@@ -127,19 +134,36 @@ WORKLOADS = [
         reference_implementation=None,
         validator="QueryProperties,RepeatableRead",
     ),
+    # Added as part of MaterializeInc/materialize#25340.
+    Workload(
+        name="left-join-stacks",
+        dataset=Dataset.STAR_SCHEMA,
+        grammar="/workdir/grammars/left_join_stacks.yy",
+        reference_implementation=ReferenceImplementation.POSTGRES,
+        validator="ResultsetComparatorSimplify",
+    ),
 ]
 
 
 def workflow_default(c: Composition, parser: WorkflowArgumentParser) -> None:
     parser.add_argument(
-        "--this-tag", help="Run Materialize with this git tag on port 16875"
+        "--this-tag",
+        help="Run Materialize with this git tag on port 16875",
     )
     parser.add_argument(
         "--other-tag",
         help="Run Materialize with this git tag on port 26875 (for workloads that compare two MZ instances)",
     )
     parser.add_argument(
-        "--grammar", type=str, help="Override the default grammar of the workload"
+        "--grammar",
+        type=str,
+        help="Override the default grammar of the workload",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        action='append',
+        help="Override the dataset files for the workload",
     )
     parser.add_argument(
         "--starting-rule",
@@ -149,7 +173,12 @@ def workflow_default(c: Composition, parser: WorkflowArgumentParser) -> None:
     parser.add_argument(
         "--duration",
         type=int,
-        help="Run the Workload for the specifid time in seconds",
+        help="Run the Workload for the specified time in seconds",
+    )
+    parser.add_argument(
+        "--queries",
+        type=int,
+        help="Run the Workload for the specified number of queries",
     )
     parser.add_argument(
         "--threads",
@@ -240,26 +269,32 @@ def run_workload(c: Composition, args: argparse.Namespace, workload: Workload) -
         case _:
             assert False
 
-    files = [] if workload.dataset is None else workload.dataset.files()
-
     dsn2 = (
         [f"--dsn2=dbi:Pg:{reference_implementation.dsn()}"]
         if reference_implementation is not None
         else []
     )
 
+    if args.dataset is not None:
+        dataset_files = args.dataset
+    elif workload.dataset is not None:
+        dataset_files = workload.dataset.files()
+    else:
+        dataset_files = []
+
     duration = args.duration if args.duration is not None else workload.duration
     grammar = args.grammar or workload.grammar
     threads = args.threads or workload.threads
+    queries = args.queries or "100000000"
 
     with c.override(*participants):
         try:
             c.up(*[p.name for p in participants])
 
-            for file in files:
+            for file in dataset_files:
                 for psql_url in psql_urls:
                     print(f"--- Populating {psql_url} with {file} ...")
-                    c.exec("rqg", "bash", "-c", f"psql -f conf/mz/{file} {psql_url}")
+                    c.exec("rqg", "bash", "-c", f"psql -f {file} {psql_url}")
 
             c.exec(
                 "rqg",
@@ -274,7 +309,7 @@ def run_workload(c: Composition, args: argparse.Namespace, workload: Workload) -
                 f"--starting-rule={args.starting_rule}"
                 if args.starting_rule is not None
                 else "",
-                "--queries=100000000",
+                f"--queries={queries}",
                 f"--threads={threads}",
                 f"--duration={duration}",
                 f"--seed={args.seed}",
