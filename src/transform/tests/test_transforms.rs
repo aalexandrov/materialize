@@ -144,103 +144,114 @@ fn handle_apply(
         return "unexpected `pipeline` arguments for `apply` directive".to_string();
     }
 
+    let with = match args.get("explain_with") {
+        Some(with) => with.iter().cloned().collect::<BTreeSet<String>>(),
+        None => BTreeSet::new(),
+    };
+
+    // Create the ExplainConfig from the given `with` set of strings.
+    let explain_config = match parse_explain_config(with) {
+        Ok(config) => config,
+        Err(e) => return format!("ExplainConfig::try_from error\n{}\n", e.to_string().trim()),
+    };
+
     let result = match pipeline[0].as_str() {
         // Pseudo-transforms.
         "identity" => {
             // noop
             let transform = Identity::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         // Actual transforms.
         "anf" => {
             use mz_transform::cse::anf::ANF;
             let transform = ANF::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "column_knowledge" => {
             use mz_transform::column_knowledge::ColumnKnowledge;
             let transform = ColumnKnowledge::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "flatmap_to_map" => {
             use mz_transform::canonicalization::FlatMapToMap;
             let transform = FlatMapToMap;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "fold_constants" => {
             use mz_transform::fold_constants::FoldConstants;
             let transform = FoldConstants { limit: None };
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "fusion_join" => {
             use mz_transform::fusion::join::Join;
             let transform = Join;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "fusion_top_k" => {
             use mz_transform::fusion::top_k::TopK;
             let transform = TopK;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "literal_lifting" => {
             use mz_transform::literal_lifting::LiteralLifting;
             let transform = LiteralLifting::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "non_null_requirements" => {
             use mz_transform::non_null_requirements::NonNullRequirements;
             let transform = NonNullRequirements::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "predicate_pushdown" => {
             use mz_transform::predicate_pushdown::PredicatePushdown;
             let transform = PredicatePushdown::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "projection_lifting" => {
             use mz_transform::movement::ProjectionLifting;
             let transform = ProjectionLifting::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "projection_pushdown" => {
             use mz_transform::movement::ProjectionPushdown;
             let transform = ProjectionPushdown::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "normalize_lets" => {
             use mz_transform::normalize_lets::NormalizeLets;
             let transform = NormalizeLets::new(false);
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "reduction_pushdown" => {
             use mz_transform::reduction_pushdown::ReductionPushdown;
             let transform = ReductionPushdown;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "redundant_join" => {
             use mz_transform::redundant_join::RedundantJoin;
             let transform = RedundantJoin::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "relation_cse" => {
             use mz_transform::cse::relation_cse::RelationCSE;
             let transform = RelationCSE::new(false);
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "semijoin_idempotence" => {
             use mz_transform::semijoin_idempotence::SemijoinIdempotence;
             let transform = SemijoinIdempotence::default();
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "threshold_elision" => {
             use mz_transform::threshold_elision::ThresholdElision;
             let transform = ThresholdElision;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         "union_branch_cancellation" => {
             use mz_transform::union_cancel::UnionBranchCancellation;
             let transform = UnionBranchCancellation;
-            apply_transform(transform, catalog, input)
+            apply_transform(transform, catalog, input, &explain_config)
         }
         transform => Err(format!("unsupported pipeline transform: {transform}")),
     };
@@ -252,6 +263,7 @@ fn apply_transform<T: mz_transform::Transform>(
     transform: T,
     catalog: &TestCatalog,
     input: &str,
+    config: &ExplainConfig,
 ) -> Result<String, String> {
     // Parse the relation, returning early on parse error.
     let mut relation = try_parse_mir(catalog, input)?;
@@ -267,8 +279,34 @@ fn apply_transform<T: mz_transform::Transform>(
         .transform(&mut relation, &mut transform_ctx)
         .map_err(|e| format!("{}\n", e.to_string().trim()))?;
 
+    // Create OptimizerFeatures and override from the config overrides layer.
+    let features = OptimizerFeatures::default().override_from(&config.features);
+
+    let context = ExplainContext {
+        config: &config,
+        features: &features,
+        humanizer: catalog,
+        used_indexes: Default::default(),
+        finishing: Default::default(),
+        duration: Default::default(),
+        target_cluster: Default::default(),
+        optimizer_notices: Default::default(),
+    };
+
+    let annotated_plan = match annotate_plan(&relation, &context) {
+        Ok(annotated_plan) => annotated_plan,
+        Err(e) => return Err(format!("annotate_plan error:\n{}\n", e.to_string().trim())),
+    };
+
     // Serialize and return the transformed relation.
-    Ok(relation.explain(&ExplainConfig::default(), Some(catalog)))
+    Ok(text_string_at(annotated_plan.plan, || {
+        PlanRenderingContext {
+            indent: Indent::default(),
+            humanizer: context.humanizer,
+            annotations: annotated_plan.annotations.clone(),
+            config: &config,
+        }
+    }))
 }
 
 fn parse_explain_config(mut flags: BTreeSet<String>) -> Result<ExplainConfig, String> {
