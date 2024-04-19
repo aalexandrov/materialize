@@ -270,10 +270,22 @@ impl PredicatePushdown {
                                 pred_not_translated.push(predicate)
                             }
 
+                            {
+                                use mz_ore::str::separated;
+                                let eqs = equivalences.iter().map(|eq| separated(", ", eq));
+                                let eqs = separated("], [", eqs);
+                                println!("equivalences (1): [{eqs}]");
+                            }
                             mz_expr::canonicalize::canonicalize_equivalences(
                                 equivalences,
                                 std::iter::once(&input_type.column_types),
                             );
+                            {
+                                use mz_ore::str::separated;
+                                let eq = equivalences.iter().map(|eq| separated(", ", eq));
+                                let eq = separated("], [", eq);
+                                println!("equivalences (2): [{eq}]");
+                            }
 
                             let (retain, push_downs) = Self::push_filters_through_join(
                                 &input_mapper,
@@ -849,6 +861,18 @@ impl PredicatePushdown {
         let mut push_downs = vec![Vec::new(); input_mapper.total_inputs()];
         let mut retain = Vec::new();
 
+        {
+            use mz_ore::str::separated;
+            let eqs = equivalences.iter().map(|eq| separated(", ", eq));
+            let eqs = separated("], [", eqs);
+            println!("equivalences: [{eqs}]");
+        }
+        {
+            use mz_ore::str::separated;
+            let ps = separated(" AND ", predicates.iter());
+            println!("predicates: {ps}");
+        }
+
         for predicate in predicates.drain(..) {
             // Track if the predicate has been pushed to at least one input.
             let mut pushed = false;
@@ -895,6 +919,16 @@ impl PredicatePushdown {
             if !pushed {
                 retain.push(predicate);
             }
+        }
+
+        {
+            use mz_ore::str::separated;
+            let ps = separated(" AND ", retain.iter());
+            println!("retain: {ps}");
+        }
+        for (i, predicates) in push_downs.iter().enumerate() {
+            let ps = mz_ore::str::separated(" AND ", predicates.iter());
+            println!("push_down[{i}]: {ps}");
         }
 
         (retain, push_downs)
