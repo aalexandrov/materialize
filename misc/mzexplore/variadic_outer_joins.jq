@@ -20,7 +20,6 @@ def is_left_or_inner_join:
 def is_join_stack:
       is_left_or_inner_join
   and (.Join.left | is_left_or_inner_join)
-  and (.Join.left.Join.left | is_left_or_inner_join)
 ;
 
 def unstacked_children:
@@ -35,6 +34,29 @@ def maximal_stacks:
   then .,                                    # return this stack of joins...
        (unstacked_children | maximal_stacks) # ...and search the children that aren't themselves stacked
   else .[]? | maximal_stacks
+  end
+;
+
+def is_join:
+  type == "object" and has("Join")
+;
+
+def is_join_tree:
+  is_join and ((.Join.left | is_join) or (.Join.right | is_join))
+;
+
+def join_children:
+    if is_join
+    then [.Join.left | join_children[] , .Join.right | join_children[] ]
+    else [.]
+    end
+;
+
+def join_trees:
+  if is_join
+  then .,                           # return this stack of joins...
+       (join_children | join_trees) # ...and search the children that aren't themselves stacked
+  else .[]? | join_trees
   end
 ;
 
@@ -109,4 +131,5 @@ def compute_predicate_info:
        end)
 ;
 
-maximal_stacks | values | { "file": input_filename, "size": . | stack_info, "predicates": . | compute_predicate_info }
+# maximal_stacks | values | { "file": input_filename, "size": . | stack_info, "predicates": . | compute_predicate_info }
+join_trees | values | { "file": input_filename, "size": . | stack_info, "predicates": . | compute_predicate_info }
